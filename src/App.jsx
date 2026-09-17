@@ -1531,7 +1531,6 @@ function Login({ onLogin }) {
 
         <div className="private-note">
           🔒 Private shared account ·
-          Santhosh + Sindhuja
         </div>
 
       </div>
