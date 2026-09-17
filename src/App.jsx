@@ -920,7 +920,7 @@ export default function App() {
           US<span>💜</span>
         </div>
 
-        <p>We Spent / We Saved</p>
+        <p>We Spent but We Saved</p>
 
         <div className="loader" />
       </div>
@@ -958,7 +958,7 @@ export default function App() {
 
           <div className="mobile-brand">
             <b>US</b>
-            <span>We Spent / We Saved</span>
+            <span>We Spent but We Saved</span>
           </div>
 
 
@@ -1436,7 +1436,7 @@ function Login({ onLogin }) {
         </div>
 
         <h1>
-          We Spent / We Saved
+          We Spent but We Saved
         </h1>
 
         <p className="muted">
@@ -1530,7 +1530,7 @@ function Login({ onLogin }) {
 
 
         <div className="private-note">
-          🔒 Private shared account ·
+          🔒 Private shared account
         </div>
 
       </div>
@@ -1636,7 +1636,7 @@ function Sidebar({
         </strong>
 
         <small>
-          We Spent / We Saved
+          We Spent but We Saved
         </small>
 
       </div>
