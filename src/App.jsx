@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { supabase } from "./supabase";
 import {
   LayoutDashboard,
+  Landmark,
   UserRound,
   UsersRound,
   Plus,
@@ -36,6 +37,7 @@ import {
   X,
   Check,
   Trash2,
+  Edit3,
   ArrowRight,
   RefreshCw,
   Camera,
@@ -98,6 +100,21 @@ const INCOME_SOURCES = [
   "Allowance",
   "Interest",
   "Other"
+];
+
+const ANALYTICS_COLORS = [
+  "#7C3AED",
+  "#2563EB",
+  "#059669",
+  "#F59E0B",
+  "#EF4444",
+  "#DB2777",
+  "#0891B2",
+  "#EA580C",
+  "#65A30D",
+  "#4F46E5",
+  "#9333EA",
+  "#0F766E"
 ];
 
 
@@ -221,6 +238,7 @@ export default function App() {
   const [budgets, setBudgets] = useState([]);
   const [recurring, setRecurring] = useState([]);
   const [settlements, setSettlements] = useState([]);
+  const [bankAccounts, setBankAccounts] = useState([]);
   const [settings, setSettings] = useState(null);
 
   const [showAdd, setShowAdd] = useState(false);
@@ -279,6 +297,7 @@ export default function App() {
         setBudgets([]);
         setRecurring([]);
         setSettlements([]);
+        setBankAccounts([]);
         setSettings(null);
         setLoading(false);
       }
@@ -404,6 +423,7 @@ export default function App() {
       b,
       r,
       s,
+      ba,
       st
     ] = await Promise.all([
       supabase
@@ -458,6 +478,12 @@ export default function App() {
         .order("created_at", {
           ascending: false
         }),
+
+      supabase
+        .from("bank_accounts")
+        .select("*")
+        .eq("account_id", aid)
+        .order("bank_name"),
 
       supabase
         .from("settings")
@@ -576,6 +602,13 @@ export default function App() {
 
     if (s.data) {
       setSettlements(s.data);
+    }
+
+    if (ba.data) {
+      setBankAccounts(ba.data);
+    } else if (ba.error) {
+      console.error("Bank accounts load failed:", ba.error);
+      setBankAccounts([]);
     }
 
     if (st.data) {
@@ -759,6 +792,57 @@ export default function App() {
 
 
   // ==========================================================
+  // LINKED BANK BALANCES
+  // ==========================================================
+  // The dashboard and Bank Balance page use the same source of truth:
+  // transactions linked to bank_accounts through bank_account_id.
+  // Closing = opening + income - expenses - savings.
+  const bankStatsForApp = (bank) => {
+    const bankTx = transactions.filter((t) => {
+      const txDate = localDateKey(t.transaction_date);
+      const openDate = localDateKey(bank.opening_date);
+
+      return (
+        t.bank_account_id === bank.id &&
+        (!openDate || txDate >= openDate)
+      );
+    });
+
+    const income = bankTx
+      .filter((t) => t.type === "income")
+      .reduce((sum, t) => sum + Number(t.amount || 0), 0);
+
+    const expenses = bankTx
+      .filter((t) => isExpenseType(t.type))
+      .reduce((sum, t) => sum + Number(t.amount || 0), 0);
+
+    const savings = bankTx
+      .filter((t) => t.type === "savings")
+      .reduce((sum, t) => sum + Number(t.amount || 0), 0);
+
+    return {
+      income,
+      expenses,
+      savings,
+      closing:
+        Number(bank.opening_balance || 0) +
+        income -
+        expenses -
+        savings
+    };
+  };
+
+  const combinedBankBalance = bankAccounts.reduce(
+    (sum, bank) => sum + bankStatsForApp(bank).closing,
+    0
+  );
+
+  const profileBankBalance = (pid) =>
+    bankAccounts
+      .filter((bank) => bank.profile_id === pid)
+      .reduce((sum, bank) => sum + bankStatsForApp(bank).closing, 0);
+
+  // ==========================================================
   // LOGOUT
   // ==========================================================
 
@@ -781,6 +865,7 @@ export default function App() {
     setBudgets([]);
     setRecurring([]);
     setSettlements([]);
+    setBankAccounts([]);
     setSettings(null);
     setPage("overview");
   };
@@ -1115,11 +1200,7 @@ export default function App() {
               income={combinedIncome}
               expenses={combinedExpenses}
               savings={combinedSavings}
-              balance={
-                combinedIncome -
-                combinedExpenses -
-                combinedSavings
-              }
+              balance={combinedBankBalance}
               transactions={transactions}
               openAdd={openAdd}
               weeklyExpenseTotal={weeklyExpenseTotal}
@@ -1135,6 +1216,7 @@ export default function App() {
             <PersonDashboard
               profile={profiles[0]}
               stats={profileStats(profiles[0]?.id)}
+              bankBalance={profileBankBalance(profiles[0]?.id)}
               transactions={transactions.filter(
                 (t) =>
                   t.profile_id === profiles[0]?.id
@@ -1149,6 +1231,7 @@ export default function App() {
             <PersonDashboard
               profile={profiles[1]}
               stats={profileStats(profiles[1]?.id)}
+              bankBalance={profileBankBalance(profiles[1]?.id)}
               transactions={transactions.filter(
                 (t) =>
                   t.profile_id === profiles[1]?.id
@@ -1227,6 +1310,17 @@ export default function App() {
           )}
 
 
+          {page === "bankbalance" && (
+            <BankBalance
+              account={account}
+              profiles={profiles}
+              transactions={transactions}
+              bankAccounts={bankAccounts}
+              refresh={refresh}
+              showToast={showToast}
+            />
+          )}
+
           {page === "receipts" && (
             <Receipts
               transactions={transactions}
@@ -1270,6 +1364,7 @@ export default function App() {
           key={editingTransaction?.id || "new"}
           account={account}
           profiles={profiles}
+          bankAccounts={bankAccounts}
           defaultProfile={defaultProfile}
           editingTransaction={editingTransaction}
           onClose={() => {
@@ -1374,6 +1469,667 @@ export default function App() {
   );
 }
 
+
+// ============================================================
+// BANK BALANCE
+// ============================================================
+
+function BankBalance({
+  account,
+  profiles,
+  transactions,
+  bankAccounts,
+  refresh,
+  showToast
+}) {
+  const [selectedProfile, setSelectedProfile] = useState("combined");
+  const [bankName, setBankName] = useState("");
+  const [accountType, setAccountType] = useState("Bank Account");
+  const [openingBalance, setOpeningBalance] = useState("");
+  const [openingDate, setOpeningDate] = useState(localDateKey(new Date()));
+  const [busy, setBusy] = useState(false);
+  const [assigningTransactionId, setAssigningTransactionId] = useState("");
+
+  const visibleBanks =
+    selectedProfile === "combined"
+      ? bankAccounts
+      : bankAccounts.filter((b) => b.profile_id === selectedProfile);
+
+  const profileName = (pid) =>
+    profiles.find((p) => p.id === pid)?.name || "Person";
+
+  const bankStats = (bank) => {
+    const bankTx = transactions.filter((t) => {
+      const transactionDate = localDateKey(t.transaction_date);
+      const openingDate = localDateKey(bank.opening_date);
+
+      return (
+        t.bank_account_id === bank.id &&
+        (!openingDate || transactionDate >= openingDate)
+      );
+    });
+
+    const income = bankTx
+      .filter((t) => t.type === "income")
+      .reduce((sum, t) => sum + Number(t.amount || 0), 0);
+
+    const expenses = bankTx
+      .filter((t) => isExpenseType(t.type))
+      .reduce((sum, t) => sum + Number(t.amount || 0), 0);
+
+    const savings = bankTx
+      .filter((t) => t.type === "savings")
+      .reduce((sum, t) => sum + Number(t.amount || 0), 0);
+
+    const closing =
+      Number(bank.opening_balance || 0) +
+      income -
+      expenses -
+      savings;
+
+    return {
+      income,
+      expenses,
+      savings,
+      closing,
+      transactionCount: bankTx.length
+    };
+  };
+
+  const totalOpening = visibleBanks.reduce(
+    (sum, b) => sum + Number(b.opening_balance || 0),
+    0
+  );
+
+  const totalIncome = visibleBanks.reduce(
+    (sum, b) => sum + bankStats(b).income,
+    0
+  );
+
+  const totalExpenses = visibleBanks.reduce(
+    (sum, b) => sum + bankStats(b).expenses,
+    0
+  );
+
+  const totalSavings = visibleBanks.reduce(
+    (sum, b) => sum + bankStats(b).savings,
+    0
+  );
+
+  const totalClosing = visibleBanks.reduce(
+    (sum, b) => sum + bankStats(b).closing,
+    0
+  );
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  const monday = new Date(today);
+  const day = monday.getDay();
+  monday.setDate(monday.getDate() - (day === 0 ? 6 : day - 1));
+
+  const weekStartKey = localDateKey(monday);
+  const todayKey = localDateKey(today);
+
+  const weeklySpent = transactions
+    .filter((t) => {
+      const date = localDateKey(t.transaction_date);
+      const belongsToSelectedProfile =
+        selectedProfile === "combined"
+          ? true
+          : bankAccounts
+              .filter((b) => b.profile_id === selectedProfile)
+              .some((b) => b.id === t.bank_account_id);
+
+      return (
+        belongsToSelectedProfile &&
+        date >= weekStartKey &&
+        date <= todayKey &&
+        isExpenseType(t.type)
+      );
+    })
+    .reduce((sum, t) => sum + Number(t.amount || 0), 0);
+
+  const currentMonthKey = todayKey.slice(0, 7);
+
+  const monthlySpent = transactions
+    .filter((t) => {
+      const date = localDateKey(t.transaction_date);
+      const belongsToSelectedProfile =
+        selectedProfile === "combined"
+          ? true
+          : bankAccounts
+              .filter((b) => b.profile_id === selectedProfile)
+              .some((b) => b.id === t.bank_account_id);
+
+      return (
+        belongsToSelectedProfile &&
+        date.slice(0, 7) === currentMonthKey &&
+        isExpenseType(t.type)
+      );
+    })
+    .reduce((sum, t) => sum + Number(t.amount || 0), 0);
+
+  const assignTransactionToBank = async (transactionId, bankId) => {
+    if (!account?.id || !transactionId || !bankId) return;
+
+    setAssigningTransactionId(transactionId);
+
+    try {
+      const selectedBank = bankAccounts.find((b) => b.id === bankId);
+      const transaction = transactions.find((t) => t.id === transactionId);
+
+      if (!selectedBank) throw new Error("Selected bank account was not found.");
+      if (!transaction) throw new Error("Transaction was not found.");
+
+      if (
+        transaction.profile_id &&
+        transaction.profile_id !== selectedBank.profile_id
+      ) {
+        throw new Error("This bank belongs to a different person.");
+      }
+
+      if (
+        transaction.type === "shared_expense" &&
+        transaction.shared_paid_by &&
+        transaction.shared_paid_by !== selectedBank.profile_id
+      ) {
+        throw new Error("A shared expense must use the payer's bank.");
+      }
+
+      const { error } = await supabase
+        .from("transactions")
+        .update({ bank_account_id: bankId })
+        .eq("id", transactionId)
+        .eq("account_id", account.id);
+
+      if (error) throw error;
+
+      await refresh();
+      showToast("Transaction linked to bank successfully");
+    } catch (error) {
+      console.error("Bank assignment failed:", error);
+      showToast(error?.message || "Could not link transaction to bank.");
+    } finally {
+      setAssigningTransactionId("");
+    }
+  };
+
+  const saveBank = async (e) => {
+    e.preventDefault();
+
+    if (!account?.id) {
+      showToast("Account is not ready.");
+      return;
+    }
+
+    if (selectedProfile === "combined") {
+      showToast("Select Santhosh or Sindhuja before adding a bank.");
+      return;
+    }
+
+    const name = bankName.trim();
+
+    if (!name) {
+      showToast("Enter the bank name.");
+      return;
+    }
+
+    const opening = Number(openingBalance || 0);
+
+    if (!Number.isFinite(opening) || opening < 0) {
+      showToast("Enter a valid opening balance.");
+      return;
+    }
+
+    setBusy(true);
+
+    try {
+      const { error } = await supabase
+        .from("bank_accounts")
+        .insert({
+          account_id: account.id,
+          profile_id: selectedProfile,
+          bank_name: name,
+          account_type: accountType.trim() || "Bank Account",
+          opening_balance: opening,
+          opening_date: openingDate || todayKey
+        });
+
+      if (error) {
+        showToast(error.message);
+        return;
+      }
+
+      setBankName("");
+      setAccountType("Bank Account");
+      setOpeningBalance("");
+      setOpeningDate(todayKey);
+
+      await refresh();
+      showToast(`${name} added successfully`);
+    } catch (error) {
+      console.error("Bank creation failed:", error);
+      showToast(error?.message || "Could not add bank.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const editOpeningBalance = async (bank) => {
+    const value = window.prompt(
+      `Opening balance for ${bank.bank_name}`,
+      String(bank.opening_balance ?? 0)
+    );
+
+    if (value === null) return;
+
+    const opening = Number(value);
+
+    if (!Number.isFinite(opening) || opening < 0) {
+      showToast("Enter a valid non-negative opening balance.");
+      return;
+    }
+
+    const date = window.prompt(
+      `Opening date for ${bank.bank_name} (YYYY-MM-DD)`,
+      localDateKey(bank.opening_date) || todayKey
+    );
+
+    if (date === null) return;
+
+    const { error } = await supabase
+      .from("bank_accounts")
+      .update({
+        opening_balance: opening,
+        opening_date: date
+      })
+      .eq("id", bank.id)
+      .eq("account_id", account.id);
+
+    if (error) {
+      showToast(error.message);
+      return;
+    }
+
+    await refresh();
+    showToast(`${bank.bank_name} opening balance updated`);
+  };
+
+  const deleteBank = async (bank) => {
+    const linked = transactions.some(
+      (t) => t.bank_account_id === bank.id
+    );
+
+    if (linked) {
+      showToast(
+        "This bank has transactions linked to it. Reassign those transactions before deleting the bank."
+      );
+      return;
+    }
+
+    if (!window.confirm(`Delete ${bank.bank_name}?`)) return;
+
+    const { error } = await supabase
+      .from("bank_accounts")
+      .delete()
+      .eq("id", bank.id)
+      .eq("account_id", account.id);
+
+    if (error) {
+      showToast(error.message);
+      return;
+    }
+
+    await refresh();
+    showToast("Bank account deleted");
+  };
+
+  return (
+    <>
+      <PageHead
+        eyebrow="BANKS & BALANCES"
+        title="Bank Balance"
+        desc="Every linked transaction changes its bank automatically. Closing balance = opening + income - expenses - savings."
+      />
+
+      <div className="segmented" style={{ marginBottom: 18 }}>
+        <button
+          type="button"
+          className={selectedProfile === "combined" ? "selected" : ""}
+          onClick={() => setSelectedProfile("combined")}
+        >
+          Combined
+        </button>
+
+        {profiles.slice(0, 2).map((p) => (
+          <button
+            type="button"
+            key={p.id}
+            className={selectedProfile === p.id ? "selected" : ""}
+            onClick={() => setSelectedProfile(p.id)}
+          >
+            {p.name}
+          </button>
+        ))}
+      </div>
+
+      <div className="stats-grid">
+        <StatCard
+          icon={<Wallet />}
+          label="Opening Balance"
+          value={money(totalOpening)}
+          sub="Selected view"
+        />
+
+        <StatCard
+          icon={<ArrowDownRight />}
+          label="This Week Spent"
+          value={money(weeklySpent)}
+          sub="Monday to today"
+          up={false}
+        />
+
+        <StatCard
+          icon={<ArrowDownRight />}
+          label="This Month Spent"
+          value={money(monthlySpent)}
+          sub="Current month"
+          up={false}
+        />
+
+        <StatCard
+          icon={<Wallet />}
+          label="Closing Balance"
+          value={money(totalClosing)}
+          sub="Opening + income − expenses − savings"
+        />
+      </div>
+
+      <div className="two-col">
+        <div className="panel">
+          <div className="panel-head">
+            <div>
+              <h2>Add bank account</h2>
+              <span>
+                {selectedProfile === "combined"
+                  ? "Choose a person first"
+                  : `Add a bank for ${profileName(selectedProfile)}`}
+              </span>
+            </div>
+          </div>
+
+          <form className="inline-form" onSubmit={saveBank}>
+            <input
+              placeholder="Bank name (e.g. Bank of Baroda)"
+              value={bankName}
+              onChange={(e) => setBankName(e.target.value)}
+              disabled={selectedProfile === "combined" || busy}
+              required
+            />
+
+            <select
+              value={accountType}
+              onChange={(e) => setAccountType(e.target.value)}
+              disabled={selectedProfile === "combined" || busy}
+            >
+              <option>Bank Account</option>
+              <option>Savings Account</option>
+              <option>Current Account</option>
+              <option>Salary Account</option>
+            </select>
+
+            <input
+              type="number"
+              min="0"
+              step="0.01"
+              placeholder="Opening balance"
+              value={openingBalance}
+              onChange={(e) => setOpeningBalance(e.target.value)}
+              disabled={selectedProfile === "combined" || busy}
+              required
+            />
+
+            <input
+              type="date"
+              value={openingDate}
+              onChange={(e) => setOpeningDate(e.target.value)}
+              disabled={selectedProfile === "combined" || busy}
+              required
+            />
+
+            <button
+              className="primary"
+              type="submit"
+              disabled={selectedProfile === "combined" || busy}
+            >
+              <Plus size={17} />
+              {busy ? "Adding…" : "Add Bank"}
+            </button>
+          </form>
+        </div>
+
+        <div className="panel">
+          <div className="panel-head">
+            <div>
+              <h2>Selected view summary</h2>
+              <span>
+                {selectedProfile === "combined"
+                  ? "Both people"
+                  : profileName(selectedProfile)}
+              </span>
+            </div>
+          </div>
+
+          <div className="mini-grid">
+            <div>
+              <small>Income</small>
+              <b className="positive">{money(totalIncome)}</b>
+            </div>
+
+            <div>
+              <small>Expenses</small>
+              <b className="negative">{money(totalExpenses)}</b>
+            </div>
+
+            <div>
+              <small>Savings</small>
+              <b>{money(totalSavings)}</b>
+            </div>
+
+            <div>
+              <small>Closing</small>
+              <b>{money(totalClosing)}</b>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {(() => {
+        const unassigned = transactions.filter((t) => {
+          if (t.bank_account_id) return false;
+
+          if (selectedProfile === "combined") return true;
+
+          if (t.type === "shared_expense") {
+            return t.shared_paid_by === selectedProfile;
+          }
+
+          return t.profile_id === selectedProfile;
+        });
+
+        if (!unassigned.length) return null;
+
+        const availableForTransaction = (transaction) =>
+          bankAccounts.filter((bank) => {
+            if (transaction.type === "shared_expense") {
+              return bank.profile_id === transaction.shared_paid_by;
+            }
+
+            return bank.profile_id === transaction.profile_id;
+          });
+
+        return (
+          <div className="panel" style={{ marginTop: 18 }}>
+            <div className="panel-head">
+              <div>
+                <h2>Transactions waiting for a bank</h2>
+                <span>
+                  Existing transactions without a bank will not affect a bank balance until you link them.
+                </span>
+              </div>
+            </div>
+
+            <div className="list-cards">
+              {unassigned.map((t) => {
+                const options = availableForTransaction(t);
+                const person =
+                  t.type === "shared_expense"
+                    ? profileName(t.shared_paid_by)
+                    : profileName(t.profile_id);
+
+                return (
+                  <div className="recurring-row" key={t.id}>
+                    <div className="tx-icon">
+                      {t.type === "income" ? "₹" : t.type === "savings" ? "🏦" : "↘"}
+                    </div>
+
+                    <div style={{ minWidth: 0 }}>
+                      <b>{t.merchant || t.category || "Transaction"}</b>
+                      <span>
+                        {person} · {localDateKey(t.transaction_date)}
+                      </span>
+                    </div>
+
+                    <div style={{ marginLeft: "auto", textAlign: "right" }}>
+                      <strong>{money(t.amount)}</strong>
+                    </div>
+
+                    <select
+                      value=""
+                      disabled={
+                        assigningTransactionId === t.id ||
+                        options.length === 0
+                      }
+                      onChange={(e) => {
+                        if (e.target.value) {
+                          assignTransactionToBank(t.id, e.target.value);
+                        }
+                      }}
+                      aria-label={`Select bank for ${t.merchant || t.category || "transaction"}`}
+                    >
+                      <option value="">
+                        {options.length ? "Select bank" : "No bank available"}
+                      </option>
+                      {options.map((bank) => (
+                        <option key={bank.id} value={bank.id}>
+                          {bank.bank_name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })()}
+
+      <div className="panel" style={{ marginTop: 18 }}>
+        <div className="panel-head">
+          <div>
+            <h2>
+              {selectedProfile === "combined"
+                ? "All bank accounts"
+                : `${profileName(selectedProfile)}'s bank accounts`}
+            </h2>
+            <span>
+              Each transaction reduces or increases the selected bank automatically.
+            </span>
+          </div>
+        </div>
+
+        {visibleBanks.length ? (
+          <div className="list-cards">
+            {visibleBanks.map((bank) => {
+              const stats = bankStats(bank);
+
+              return (
+                <div className="recurring-row" key={bank.id}>
+                  <div className="tx-icon">
+                    <Landmark size={20} />
+                  </div>
+
+                  <div style={{ minWidth: 0 }}>
+                    <b>{bank.bank_name}</b>
+                    <span>
+                      {profileName(bank.profile_id)} ·{" "}
+                      {bank.account_type || "Bank Account"}
+                    </span>
+                    <small>
+                      Opening {money(bank.opening_balance)} ·{" "}
+                      {bank.opening_date}
+                    </small>
+                  </div>
+
+                  <div style={{ textAlign: "right" }}>
+                    <strong>{money(stats.closing)}</strong>
+                    <small style={{ display: "block" }}>
+                      {stats.transactionCount} transactions
+                    </small>
+                  </div>
+
+                  <button
+                    type="button"
+                    className="icon-btn"
+                    onClick={() => editOpeningBalance(bank)}
+                    title="Edit opening balance"
+                    aria-label={`Edit ${bank.bank_name} opening balance`}
+                  >
+                    ✎
+                  </button>
+
+                  <button
+                    type="button"
+                    className="icon-btn"
+                    onClick={() => deleteBank(bank)}
+                    title="Delete bank"
+                    aria-label={`Delete ${bank.bank_name}`}
+                  >
+                    <Trash2 size={17} />
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          <Empty
+            text={
+              selectedProfile === "combined"
+                ? "No bank accounts added yet."
+                : `No bank accounts added for ${profileName(selectedProfile)}.`
+            }
+          />
+        )}
+      </div>
+
+      <div className="panel" style={{ marginTop: 18 }}>
+        <div className="panel-head">
+          <div>
+            <h2>How the balance works</h2>
+            <span>Calculated from your transaction history</span>
+          </div>
+        </div>
+
+        <p className="muted" style={{ lineHeight: 1.7 }}>
+          <b>Closing balance = Opening balance + Income − Expenses − Savings.</b>
+          {" "}Every transaction is linked to one bank. The dashboard reads the same bank totals, so adding, editing or deleting a transaction updates the bank balance and dashboard automatically.
+          Shared expenses are deducted from the bank belonging to the person who paid.
+        </p>
+      </div>
+    </>
+  );
+}
 
 // ============================================================
 // LOGIN
@@ -1604,6 +2360,12 @@ function Sidebar({
       "recurring",
       "Recurring",
       Repeat2
+    ],
+
+    [
+      "bankbalance",
+      "Bank Balance",
+      Landmark
     ],
 
     [
@@ -1854,7 +2616,7 @@ function Overview({
           icon={<ArrowUpRight />}
           label="Available Balance"
           value={money(balance)}
-          sub="After expenses & savings"
+          sub="Linked bank balances"
         />
 
       </div>
@@ -2011,8 +2773,15 @@ function Overview({
                 >
 
                   {chart.map(
-                    (_, i) => (
-                      <Cell key={i} />
+                    (entry, i) => (
+                      <Cell
+                        key={entry.name || i}
+                        fill={
+                          ANALYTICS_COLORS[
+                            i % ANALYTICS_COLORS.length
+                          ]
+                        }
+                      />
                     )
                   )}
 
@@ -2082,6 +2851,7 @@ function Overview({
 function PersonDashboard({
   profile,
   stats,
+  bankBalance,
   transactions,
   openAdd,
   onEdit
@@ -2140,10 +2910,8 @@ function PersonDashboard({
         <StatCard
           icon={<Wallet />}
           label="Available Balance"
-          value={money(stats.balance)}
-          sub={`Shared share ${money(
-            stats.sharedShare
-          )}`}
+          value={money(bankBalance)}
+          sub="Linked bank balances"
         />
 
       </div>
@@ -2588,6 +3356,7 @@ function Empty({
 function AddTransaction({
   account,
   profiles,
+  bankAccounts,
   defaultProfile,
   editingTransaction,
   onClose,
@@ -2604,6 +3373,7 @@ function AddTransaction({
   const [amount, setAmount] = useState(editingTransaction ? String(editingTransaction.amount ?? "") : "");
   const [category, setCategory] = useState(editingTransaction?.category || "Food");
   const [payment, setPayment] = useState(editingTransaction?.payment_method || "UPI");
+  const [bankAccount, setBankAccount] = useState(editingTransaction?.bank_account_id || "");
   const [date, setDate] = useState(
     editingTransaction?.transaction_date || new Date().toISOString().slice(0, 10)
   );
@@ -2644,6 +3414,7 @@ function AddTransaction({
       setAmount(String(editingTransaction.amount ?? ""));
       setCategory(editingTransaction.category || "Food");
       setPayment(editingTransaction.payment_method || "UPI");
+      setBankAccount(editingTransaction.bank_account_id || "");
       setDate(localDateKey(editingTransaction.transaction_date) || new Date().toISOString().slice(0, 10));
       setMerchant(editingTransaction.merchant || "");
       setNotes(editingTransaction.notes || "");
@@ -2693,6 +3464,25 @@ function AddTransaction({
     return data;
   };
 
+  const availableBanks = bankAccounts.filter((b) => {
+    if (profile === "shared" && type === "expense") {
+      return b.profile_id === paidBy;
+    }
+    if (profile === "shared") {
+      return true;
+    }
+    return b.profile_id === profile;
+  });
+
+  useEffect(() => {
+    if (bankAccount && availableBanks.some((b) => b.id === bankAccount)) return;
+    if (availableBanks.length === 1) {
+      setBankAccount(availableBanks[0].id);
+    } else if (!availableBanks.length) {
+      setBankAccount("");
+    }
+  }, [profile, type, paidBy, bankAccounts]);
+
   const save = async (e) => {
     e.preventDefault();
     setError("");
@@ -2714,6 +3504,11 @@ function AddTransaction({
     }
 
     const shared = profile === "shared";
+
+    if (!bankAccount) {
+      setError("Please select the bank account used for this transaction.");
+      return;
+    }
 
     // Resolve the selected person's real Supabase UUID. This makes the
     // picker work even when the account is an older account whose profile
@@ -2777,6 +3572,7 @@ function AddTransaction({
       amount: total,
       category: type === "savings" ? "Savings" : category,
       payment_method: payment,
+      bank_account_id: bankAccount,
       transaction_date: date,
       merchant: merchant.trim() || null,
       notes: notes.trim() || null,
@@ -2943,6 +3739,27 @@ function AddTransaction({
               />
             </label>
           </div>
+
+          <label>
+            Bank account
+            <select
+              value={bankAccount}
+              onChange={(e) => setBankAccount(e.target.value)}
+              required
+            >
+              <option value="">Select bank</option>
+              {availableBanks.map((b) => (
+                <option key={b.id} value={b.id}>
+                  {b.bank_name} · {b.account_type || "Bank Account"}
+                </option>
+              ))}
+            </select>
+            {!availableBanks.length && (
+              <small className="muted">
+                No bank is configured for this selection. Open Bank Balance and add a bank first.
+              </small>
+            )}
+          </label>
 
           {type === "expense" && (
             <div className="form-grid">
@@ -3598,9 +4415,15 @@ function Analytics({
                   {pie
                     .slice(0, 8)
                     .map(
-                      (_, i) => (
+                      (entry, i) => (
                         <Cell
-                          key={i}
+                          key={entry.name}
+                          fill={
+                            ANALYTICS_COLORS[
+                              i %
+                                ANALYTICS_COLORS.length
+                            ]
+                          }
                         />
                       )
                     )}
@@ -3777,7 +4600,11 @@ function Analytics({
                 0,
                 0
               ]}
-            />
+            >
+              <Cell fill="#059669" />
+              <Cell fill="#EF4444" />
+              <Cell fill="#7C3AED" />
+            </Bar>
 
           </BarChart>
 
@@ -4430,54 +5257,114 @@ function Recurring({
       profiles[0]?.id || ""
     );
 
+  const [editingItem, setEditingItem] =
+    useState(null);
+
+  const [deletingId, setDeletingId] =
+    useState("");
+
+  const resetForm = () => {
+    setName("");
+    setAmount("");
+    setDate("");
+    setPid(profiles[0]?.id || "");
+    setEditingItem(null);
+  };
+
+  const startEdit = (item) => {
+    setEditingItem(item);
+    setName(item.name || "");
+    setAmount(String(item.amount ?? ""));
+    setDate(item.next_due_date || "");
+    setPid(item.profile_id || profiles[0]?.id || "");
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
 
   const save = async (e) => {
-
     e.preventDefault();
 
+    const payload = {
+      account_id: account.id,
+      profile_id: pid,
+      name: name.trim(),
+      amount: Number(amount),
+      category: "Other",
+      frequency: "monthly",
+      next_due_date: date
+    };
 
-    const {
-      error
-    } =
-      await supabase
-        .from(
-          "recurring_transactions"
-        )
-        .insert({
-          account_id:
-            account.id,
-          profile_id:
-            pid,
-          name,
-          amount:
-            Number(amount),
-          category:
-            "Other",
-          frequency:
-            "monthly",
-          next_due_date:
-            date
-        });
+    if (!payload.name) {
+      showToast("Enter a recurring payment name.");
+      return;
+    }
 
+    if (!Number.isFinite(payload.amount) || payload.amount <= 0) {
+      showToast("Enter a valid amount.");
+      return;
+    }
+
+    if (!payload.next_due_date) {
+      showToast("Select the next due date.");
+      return;
+    }
+
+    const query = editingItem
+      ? supabase
+          .from("recurring_transactions")
+          .update(payload)
+          .eq("id", editingItem.id)
+          .eq("account_id", account.id)
+      : supabase
+          .from("recurring_transactions")
+          .insert(payload);
+
+    const { error } = await query;
 
     if (error) {
+      console.error("Recurring save error:", error);
+      showToast(error.message);
+      return;
+    }
 
-      showToast(
-        error.message
-      );
+    await refresh();
+    resetForm();
 
-    } else {
+    showToast(
+      editingItem
+        ? "Recurring payment updated"
+        : "Recurring payment added"
+    );
+  };
 
-      refresh();
+  const deleteRecurring = async (item) => {
+    const confirmed = window.confirm(
+      `Delete "${item.name}" (${money(item.amount)})?`
+    );
 
-      setName("");
-      setAmount("");
-      setDate("");
+    if (!confirmed) return;
 
-      showToast(
-        "Recurring payment added"
-      );
+    setDeletingId(item.id);
 
+    try {
+      const { error } = await supabase
+        .from("recurring_transactions")
+        .delete()
+        .eq("id", item.id)
+        .eq("account_id", account.id);
+
+      if (error) throw error;
+
+      if (editingItem?.id === item.id) {
+        resetForm();
+      }
+
+      await refresh();
+      showToast("Recurring payment deleted");
+    } catch (error) {
+      console.error("Recurring delete error:", error);
+      showToast(error?.message || "Could not delete recurring payment.");
+    } finally {
+      setDeletingId("");
     }
   };
 
@@ -4492,6 +5379,32 @@ function Recurring({
 
 
       <div className="panel">
+
+        <div className="panel-head">
+          <div>
+            <h2>
+              {editingItem
+                ? "Edit recurring payment"
+                : "Add recurring payment"}
+            </h2>
+            <span>
+              {editingItem
+                ? "Update the details and save your changes."
+                : "Add rent, subscriptions and other regular payments."}
+            </span>
+          </div>
+
+          {editingItem && (
+            <button
+              type="button"
+              className="ghost"
+              onClick={resetForm}
+            >
+              <X size={16} />
+              Cancel
+            </button>
+          )}
+        </div>
 
         <form
           className="inline-form"
@@ -4559,8 +5472,17 @@ function Recurring({
 
 
           <button className="primary">
-            <Plus size={17} />
-            Add
+            {editingItem ? (
+              <>
+                <Check size={17} />
+                Save Changes
+              </>
+            ) : (
+              <>
+                <Plus size={17} />
+                Add
+              </>
+            )}
           </button>
 
         </form>
@@ -4575,6 +5497,11 @@ function Recurring({
           <div
             className="recurring-row"
             key={x.id}
+            style={{
+              position: "relative",
+              paddingRight: 170,
+              minHeight: 64
+            }}
           >
 
             <div className="tx-icon">
@@ -4610,6 +5537,71 @@ function Recurring({
               Due{" "}
               {x.next_due_date}
             </small>
+
+            <div
+              style={{
+                position: "absolute",
+                right: 12,
+                top: "50%",
+                transform: "translateY(-50%)",
+                display: "flex",
+                alignItems: "center",
+                gap: 8,
+                zIndex: 5
+              }}
+            >
+              <button
+                type="button"
+                title="Edit recurring payment"
+                aria-label={`Edit ${x.name}`}
+                onClick={() => startEdit(x)}
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: 6,
+                  height: 36,
+                  padding: "0 10px",
+                  border: "1px solid #ddd6fe",
+                  borderRadius: 9,
+                  background: "#ffffff",
+                  color: "#6d28d9",
+                  cursor: "pointer",
+                  fontWeight: 700,
+                  fontSize: 13
+                }}
+              >
+                <Edit3 size={15} />
+                Edit
+              </button>
+
+              <button
+                type="button"
+                title="Delete recurring payment"
+                aria-label={`Delete ${x.name}`}
+                disabled={deletingId === x.id}
+                onClick={() => deleteRecurring(x)}
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: 6,
+                  height: 36,
+                  padding: "0 10px",
+                  border: "1px solid #fecaca",
+                  borderRadius: 9,
+                  background: "#ffffff",
+                  color: "#dc2626",
+                  cursor: deletingId === x.id ? "not-allowed" : "pointer",
+                  fontWeight: 700,
+                  fontSize: 13,
+                  opacity: deletingId === x.id ? 0.6 : 1
+                }}
+              >
+                <Trash2 size={15} />
+                {deletingId === x.id ? "Deleting..." : "Delete"}
+              </button>
+            </div>
 
           </div>
 
@@ -4714,158 +5706,227 @@ function Reports({
   transactions,
   profiles
 }) {
+  const today = localDateKey(new Date());
 
-  const [month, setMonth] =
-    useState(
-      new Date()
-        .toISOString()
-        .slice(0, 7)
+  const firstOfMonth = (() => {
+    const d = new Date();
+    d.setDate(1);
+    return localDateKey(d);
+  })();
+
+  const [fromDate, setFromDate] =
+    useState(firstOfMonth);
+
+  const [toDate, setToDate] =
+    useState(today);
+
+  const rows = transactions
+    .filter((t) => {
+      const date = localDateKey(t.transaction_date);
+      return (
+        date &&
+        date >= fromDate &&
+        date <= toDate
+      );
+    })
+    .sort(
+      (a, b) =>
+        localDateKey(a.transaction_date).localeCompare(
+          localDateKey(b.transaction_date)
+        )
     );
-
-
-  const rows =
-    transactions.filter(
-      (t) =>
-        t.transaction_date?.slice(
-          0,
-          7
-        ) === month
-    );
-
 
   const income =
     rows
-      .filter(
-        (t) =>
-          t.type === "income"
-      )
+      .filter((t) => t.type === "income")
       .reduce(
-        (s, t) =>
-          s + Number(t.amount),
+        (s, t) => s + Number(t.amount || 0),
         0
       );
-
 
   const exp =
     rows
-      .filter(
-        (t) =>
-          [
-            "expense",
-            "shared_expense"
-          ].includes(t.type)
-      )
+      .filter((t) => isExpenseType(t.type))
       .reduce(
-        (s, t) =>
-          s + Number(t.amount),
+        (s, t) => s + Number(t.amount || 0),
         0
       );
-
 
   const sav =
     rows
-      .filter(
-        (t) =>
-          t.type ===
-          "savings"
-      )
+      .filter((t) => t.type === "savings")
       .reduce(
-        (s, t) =>
-          s + Number(t.amount),
+        (s, t) => s + Number(t.amount || 0),
         0
       );
 
-
-  const csv = () => {
-
-    const body = [
-      "Date,Person,Type,Category,Amount",
-
-      ...rows.map(
-        (t) =>
-          [
-            t.transaction_date,
-
-            profiles.find(
-              (p) =>
-                p.id ===
-                t.profile_id
-            )?.name ||
-              "Shared",
-
-            t.type,
-
-            t.category || "",
-
-            t.amount
-          ].join(",")
-      )
-    ].join("\n");
-
-
-    const a =
-      document.createElement(
-        "a"
+  const personName = (t) => {
+    if (t.type === "shared_expense" && t.shared_paid_by) {
+      return (
+        profiles.find(
+          (p) => p.id === t.shared_paid_by
+        )?.name || "Shared"
       );
+    }
 
-
-    a.href =
-      URL.createObjectURL(
-        new Blob(
-          [body],
-          {
-            type:
-              "text/csv"
-          }
-        )
-      );
-
-
-    a.download =
-      `us-report-${month}.csv`;
-
-
-    a.click();
+    return (
+      profiles.find(
+        (p) => p.id === t.profile_id
+      )?.name || "Shared"
+    );
   };
 
+  const csvEscape = (value) => {
+    const stringValue = String(value ?? "");
+    return `"${stringValue.replace(/"/g, '""')}"`;
+  };
+
+  const csv = () => {
+    if (!rows.length) {
+      alert("There are no transactions in the selected date range.");
+      return;
+    }
+
+    const header = [
+      "Date",
+      "Person",
+      "Type",
+      "Category",
+      "Amount",
+      "Payment Method",
+      "Merchant",
+      "Notes"
+    ];
+
+    const body = rows.map((t) =>
+      [
+        localDateKey(t.transaction_date),
+        personName(t),
+        t.type,
+        t.category || "",
+        Number(t.amount || 0),
+        t.payment_method || "",
+        t.merchant || "",
+        t.notes || ""
+      ]
+        .map(csvEscape)
+        .join(",")
+    );
+
+    const csvText = [header.map(csvEscape).join(","), ...body].join("\n");
+
+    const a = document.createElement("a");
+
+    a.href = URL.createObjectURL(
+      new Blob(
+        [csvText],
+        { type: "text/csv;charset=utf-8" }
+      )
+    );
+
+    a.download =
+      `us-report-${fromDate}-to-${toDate}.csv`;
+
+    a.click();
+
+    URL.revokeObjectURL(a.href);
+  };
+
+  const setThisMonth = () => {
+    const d = new Date();
+    const start = new Date(
+      d.getFullYear(),
+      d.getMonth(),
+      1
+    );
+
+    setFromDate(localDateKey(start));
+    setToDate(localDateKey(d));
+  };
+
+  const setLast30Days = () => {
+    const end = new Date();
+    const start = new Date();
+    start.setDate(start.getDate() - 29);
+
+    setFromDate(localDateKey(start));
+    setToDate(localDateKey(end));
+  };
+
+  const invalidRange =
+    fromDate &&
+    toDate &&
+    fromDate > toDate;
 
   return (
     <>
       <PageHead
         eyebrow="EXPORT"
         title="Reports"
-        desc="Generate a simple monthly financial snapshot."
+        desc="Generate and download a financial report for any date range."
       />
 
-
       <div className="report-controls">
-
         <label>
-
-          Month
+          From date
 
           <input
-            type="month"
-            value={month}
+            type="date"
+            value={fromDate}
+            max={toDate || undefined}
             onChange={(e) =>
-              setMonth(
-                e.target.value
-              )
+              setFromDate(e.target.value)
             }
           />
-
         </label>
 
+        <label>
+          To date
+
+          <input
+            type="date"
+            value={toDate}
+            min={fromDate || undefined}
+            onChange={(e) =>
+              setToDate(e.target.value)
+            }
+          />
+        </label>
 
         <button
+          type="button"
           className="secondary"
-          onClick={csv}
+          onClick={setThisMonth}
         >
-          Export CSV
+          This month
         </button>
 
+        <button
+          type="button"
+          className="secondary"
+          onClick={setLast30Days}
+        >
+          Last 30 days
+        </button>
+
+        <button
+          type="button"
+          className="primary"
+          onClick={csv}
+          disabled={invalidRange || !rows.length}
+        >
+          <FileText size={17} />
+          Download CSV
+        </button>
       </div>
 
+      {invalidRange && (
+        <div className="panel" style={{ marginTop: 16 }}>
+          <p className="muted">
+            Please select a From date that is on or before the To date.
+          </p>
+        </div>
+      )}
 
       <div className="stats-grid">
 
@@ -4873,46 +5934,106 @@ function Reports({
           icon={<ArrowUpRight />}
           label="Income"
           value={money(income)}
+          sub={`${fromDate} → ${toDate}`}
         />
 
         <StatCard
           icon={<ArrowDownRight />}
           label="Expenses"
           value={money(exp)}
+          sub={`${rows.filter((t) => isExpenseType(t.type)).length} expenses`}
         />
 
         <StatCard
           icon={<PiggyBank />}
           label="Savings"
           value={money(sav)}
+          sub={`${rows.filter((t) => t.type === "savings").length} savings entries`}
         />
 
         <StatCard
           icon={<Wallet />}
           label="Balance"
-          value={money(
-            income -
-              exp -
-              sav
-          )}
+          value={money(income - exp - sav)}
+          sub="Income − expenses − savings"
         />
 
       </div>
 
-
       <div className="panel">
 
-        <h2>
-          Monthly report
-        </h2>
+        <div className="panel-head">
 
-        <p className="muted">
-          {rows.length} transactions
-          recorded in {month}.
-        </p>
+          <div>
+            <h2>
+              Report summary
+            </h2>
+
+            <span>
+              {rows.length} transactions from {fromDate} to {toDate}.
+            </span>
+          </div>
+
+          <button
+            type="button"
+            className="secondary"
+            onClick={csv}
+            disabled={invalidRange || !rows.length}
+          >
+            <FileText size={16} />
+            Download CSV
+          </button>
+
+        </div>
+
+        {!rows.length ? (
+          <Empty
+            text="No transactions found for the selected date range."
+          />
+        ) : (
+          <div className="transaction-list">
+            {rows.slice(0, 20).map((t) => (
+              <div
+                className="transaction-row"
+                key={t.id}
+              >
+                <div className="transaction-main">
+                  <div className="transaction-icon">
+                    {t.type === "income"
+                      ? "↗"
+                      : t.type === "savings"
+                      ? "🏦"
+                      : "↘"}
+                  </div>
+
+                  <div>
+                    <strong>
+                      {t.merchant ||
+                        t.category ||
+                        "Transaction"}
+                    </strong>
+
+                    <span>
+                      {personName(t)} · {localDateKey(t.transaction_date)}
+                    </span>
+                  </div>
+                </div>
+
+                <strong>
+                  {money(t.amount)}
+                </strong>
+              </div>
+            ))}
+
+            {rows.length > 20 && (
+              <p className="muted">
+                Showing the first 20 transactions here. The downloaded CSV contains all {rows.length} transactions.
+              </p>
+            )}
+          </div>
+        )}
 
       </div>
-
     </>
   );
 }
