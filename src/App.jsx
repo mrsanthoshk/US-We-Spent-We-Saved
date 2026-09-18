@@ -407,6 +407,7 @@ export default function App() {
   const [avatarUrl, setAvatarUrl] = useState("");
   const [avatarBusy, setAvatarBusy] = useState(false);
   const [showAccountMenu, setShowAccountMenu] = useState(false);
+  const [showMobileMenu, setShowMobileMenu] = useState(false);
   const [reminders, setReminders] = useState([]);
   const [showNotifications, setShowNotifications] = useState(false);
   const [showReminderForm, setShowReminderForm] = useState(false);
@@ -1898,6 +1899,489 @@ export default function App() {
           --sidebar-width: 245px;
         }
 
+        /* =========================================================
+           MOBILE UI — PHONE OPTIMIZATION
+           ========================================================= */
+
+        @media (max-width: 760px) {
+          html,
+          body,
+          #root {
+            width: 100%;
+            max-width: 100%;
+            overflow-x: hidden;
+          }
+
+          .app-shell {
+            min-height: 100dvh !important;
+            width: 100% !important;
+            overflow-x: hidden !important;
+          }
+
+          .app-shell .main {
+            min-height: 100dvh !important;
+            width: 100% !important;
+            margin: 0 !important;
+            padding: 0 0 104px !important;
+            box-sizing: border-box !important;
+            overflow-x: hidden !important;
+          }
+
+          .topbar {
+            position: sticky !important;
+            top: 0 !important;
+            height: 64px !important;
+            min-height: 64px !important;
+            padding: 10px 16px !important;
+            box-sizing: border-box !important;
+            background: rgba(255, 255, 255, .96) !important;
+            backdrop-filter: blur(12px) !important;
+            -webkit-backdrop-filter: blur(12px) !important;
+            border-bottom: 1px solid rgba(124, 58, 237, .10) !important;
+            z-index: 1000 !important;
+          }
+
+          .mobile-brand {
+            display: flex !important;
+            flex-direction: column !important;
+            justify-content: center !important;
+            min-width: 0 !important;
+            gap: 1px !important;
+          }
+
+          .mobile-brand b {
+            font-size: 20px !important;
+            line-height: 1.05 !important;
+            font-weight: 800 !important;
+          }
+
+          .mobile-brand span {
+            font-size: 9px !important;
+            line-height: 1.2 !important;
+            color: #7b7285 !important;
+            white-space: nowrap !important;
+          }
+
+          .top-actions {
+            display: flex !important;
+            align-items: center !important;
+            gap: 7px !important;
+            margin-left: auto !important;
+          }
+
+          .top-actions .icon-btn {
+            width: 38px !important;
+            height: 38px !important;
+            min-width: 38px !important;
+            border-radius: 11px !important;
+          }
+
+          .top-actions .account-menu-wrap > button {
+            width: 40px !important;
+            height: 40px !important;
+            min-width: 40px !important;
+            padding: 0 !important;
+            border-radius: 50% !important;
+            border: 2px solid #eee7f7 !important;
+            overflow: hidden !important;
+          }
+
+          .top-actions .account-menu-wrap > button img {
+            width: 100% !important;
+            height: 100% !important;
+            object-fit: cover !important;
+          }
+
+          .content {
+            width: 100% !important;
+            max-width: 100% !important;
+            padding: 20px 14px 0 !important;
+            box-sizing: border-box !important;
+          }
+
+          .page-head {
+            display: flex !important;
+            flex-direction: column !important;
+            align-items: stretch !important;
+            gap: 16px !important;
+            margin-bottom: 20px !important;
+          }
+
+          .page-head h1 {
+            font-size: 28px !important;
+            line-height: 1.12 !important;
+            letter-spacing: -.5px !important;
+            margin: 4px 0 8px !important;
+          }
+
+          .page-head p {
+            font-size: 14px !important;
+            line-height: 1.55 !important;
+            margin: 0 !important;
+          }
+
+          .page-head > div:last-child,
+          .page-head > .primary,
+          .page-head > button {
+            width: 100% !important;
+          }
+
+          .page-head .primary,
+          .page-head button.primary {
+            min-height: 52px !important;
+            width: 100% !important;
+            justify-content: center !important;
+            font-size: 15px !important;
+            border-radius: 13px !important;
+          }
+
+          .stats-grid,
+          .people-grid,
+          .budget-grid,
+          .goal-grid,
+          .receipt-grid,
+          .settings-grid,
+          .two-col {
+            grid-template-columns: 1fr !important;
+            width: 100% !important;
+            gap: 12px !important;
+          }
+
+          .stat-card,
+          .person-card,
+          .panel,
+          .card {
+            width: 100% !important;
+            max-width: 100% !important;
+            min-width: 0 !important;
+            box-sizing: border-box !important;
+            border-radius: 16px !important;
+          }
+
+          .stat-card {
+            min-height: 112px !important;
+            padding: 16px !important;
+          }
+
+          .stat-card .stat-icon {
+            width: 42px !important;
+            height: 42px !important;
+            min-width: 42px !important;
+          }
+
+          .stat-card h3,
+          .stat-card b {
+            font-size: 20px !important;
+          }
+
+          .person-card {
+            padding: 16px !important;
+          }
+
+          .person-top {
+            gap: 10px !important;
+          }
+
+          .person-top h3 {
+            font-size: 17px !important;
+          }
+
+          .mini-grid {
+            grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+            gap: 12px !important;
+          }
+
+          .mini-grid > div {
+            min-width: 0 !important;
+          }
+
+          .panel-head {
+            gap: 10px !important;
+            flex-wrap: wrap !important;
+          }
+
+          .panel-head h2,
+          .section-title,
+          .panel h2 {
+            font-size: 16px !important;
+          }
+
+          .content .recharts-responsive-container {
+            max-width: 100% !important;
+          }
+
+          .content .recharts-wrapper,
+          .content .recharts-surface {
+            max-width: 100% !important;
+          }
+
+          .tx-table {
+            width: 100% !important;
+            overflow-x: auto !important;
+            -webkit-overflow-scrolling: touch !important;
+          }
+
+          .tx-table > * {
+            min-width: 680px !important;
+          }
+
+          .table-head,
+          .table-row {
+            font-size: 12px !important;
+          }
+
+          .transaction-list {
+            width: 100% !important;
+            overflow: hidden !important;
+          }
+
+          .transaction-row,
+          .report-transaction-row {
+            min-height: 64px !important;
+            padding: 10px 2px !important;
+            gap: 10px !important;
+          }
+
+          .transaction-main,
+          .report-transaction-main {
+            min-width: 0 !important;
+          }
+
+          .transaction-main > div:last-child,
+          .report-transaction-info {
+            min-width: 0 !important;
+          }
+
+          .transaction-main strong,
+          .report-transaction-info strong {
+            max-width: 190px !important;
+            white-space: nowrap !important;
+            overflow: hidden !important;
+            text-overflow: ellipsis !important;
+          }
+
+          .report-transaction-amount {
+            min-width: 92px !important;
+            font-size: 13px !important;
+          }
+
+          .form-grid {
+            grid-template-columns: 1fr !important;
+            gap: 12px !important;
+          }
+
+          .modal-backdrop {
+            padding: 10px !important;
+            align-items: flex-end !important;
+          }
+
+          .modal {
+            width: 100% !important;
+            max-width: 100% !important;
+            max-height: calc(100dvh - 20px) !important;
+            margin: 0 !important;
+            border-radius: 22px 22px 16px 16px !important;
+            overflow-y: auto !important;
+          }
+
+          .modal-head {
+            position: sticky !important;
+            top: 0 !important;
+            z-index: 5 !important;
+            background: #fff !important;
+          }
+
+          .modal-actions {
+            position: sticky !important;
+            bottom: 0 !important;
+            background: rgba(255,255,255,.96) !important;
+            backdrop-filter: blur(10px) !important;
+            -webkit-backdrop-filter: blur(10px) !important;
+            padding-top: 10px !important;
+          }
+
+          .modal-actions button {
+            min-height: 46px !important;
+          }
+
+          .mobile-nav {
+            left: 8px !important;
+            right: 8px !important;
+            bottom: calc(8px + env(safe-area-inset-bottom)) !important;
+            padding: 7px !important;
+            gap: 4px !important;
+            border-radius: 19px !important;
+          }
+
+          .mobile-nav button {
+            min-height: 54px !important;
+            padding: 7px 2px !important;
+            border-radius: 13px !important;
+            gap: 3px !important;
+            font-size: 9px !important;
+            line-height: 1.1 !important;
+          }
+
+          .mobile-nav button svg {
+            width: 18px !important;
+            height: 18px !important;
+          }
+
+          .mobile-more-backdrop {
+            position: fixed !important;
+            inset: 0 !important;
+            z-index: 1190 !important;
+            background: rgba(18, 12, 28, .22) !important;
+            backdrop-filter: blur(2px) !important;
+            -webkit-backdrop-filter: blur(2px) !important;
+          }
+
+          .mobile-more-panel {
+            position: fixed !important;
+            left: 10px !important;
+            right: 10px !important;
+            bottom: calc(86px + env(safe-area-inset-bottom)) !important;
+            z-index: 1210 !important;
+            background: #fff !important;
+            border: 1px solid rgba(124,58,237,.14) !important;
+            border-radius: 20px !important;
+            box-shadow: 0 20px 55px rgba(20,10,40,.22) !important;
+            padding: 12px !important;
+            max-height: min(68vh, 560px) !important;
+            overflow-y: auto !important;
+            animation: mobileMoreIn 180ms cubic-bezier(.22,1,.36,1) !important;
+          }
+
+          @keyframes mobileMoreIn {
+            from { opacity: 0; transform: translateY(12px) scale(.98); }
+            to { opacity: 1; transform: translateY(0) scale(1); }
+          }
+
+          .mobile-more-title {
+            display: flex !important;
+            align-items: center !important;
+            justify-content: space-between !important;
+            padding: 7px 8px 11px !important;
+          }
+
+          .mobile-more-title strong {
+            font-size: 16px !important;
+          }
+
+          .mobile-more-title span {
+            font-size: 11px !important;
+            color: #7b7285 !important;
+          }
+
+          .mobile-more-grid {
+            display: grid !important;
+            grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+            gap: 8px !important;
+          }
+
+          .mobile-more-item {
+            display: flex !important;
+            align-items: center !important;
+            gap: 9px !important;
+            min-height: 50px !important;
+            padding: 9px 10px !important;
+            border: 1px solid #eee7f7 !important;
+            border-radius: 13px !important;
+            background: #fff !important;
+            color: #30263d !important;
+            text-align: left !important;
+            font: inherit !important;
+            font-size: 12px !important;
+            font-weight: 700 !important;
+          }
+
+          .mobile-more-item svg {
+            flex: 0 0 auto !important;
+            color: #6d28d9 !important;
+          }
+
+          .mobile-more-item.active {
+            color: #6d28d9 !important;
+            background: #f3ebff !important;
+            border-color: rgba(124,58,237,.18) !important;
+          }
+
+          .mobile-more-close {
+            width: 34px !important;
+            height: 34px !important;
+            min-width: 34px !important;
+            padding: 0 !important;
+            border-radius: 10px !important;
+            border: 1px solid #eee7f7 !important;
+            background: #fff !important;
+          }
+
+          .mobile-nav button.add {
+            min-height: 58px !important;
+            margin-top: -3px !important;
+            margin-bottom: -3px !important;
+            border-radius: 16px !important;
+            box-shadow: 0 8px 22px rgba(109,40,217,.28) !important;
+          }
+
+          /* Make dropdowns and controls finger-friendly. */
+          input,
+          select,
+          textarea {
+            min-height: 46px !important;
+            font-size: 14px !important;
+          }
+
+          label {
+            font-size: 12px !important;
+          }
+
+          button {
+            -webkit-tap-highlight-color: transparent;
+          }
+
+          /* Notifications should fit the phone instead of overflowing. */
+          .top-actions [style*="width: 370px"] {
+            width: min(370px, calc(100vw - 28px)) !important;
+            right: -4px !important;
+            max-height: 70vh !important;
+            overflow-y: auto !important;
+          }
+
+          /* Prevent long bank names / report text from widening the page. */
+          .bank-card,
+          .bank-waiting-row,
+          .recurring-row {
+            max-width: 100% !important;
+            box-sizing: border-box !important;
+          }
+
+          .bank-card *,
+          .bank-waiting-row *,
+          .recurring-row * {
+            min-width: 0 !important;
+          }
+        }
+
+        @media (max-width: 390px) {
+          .content {
+            padding-left: 11px !important;
+            padding-right: 11px !important;
+          }
+
+          .page-head h1 {
+            font-size: 25px !important;
+          }
+
+          .mini-grid {
+            gap: 9px !important;
+          }
+
+          .mobile-nav button {
+            font-size: 8px !important;
+          }
+        }
+
         .app-shell .sidebar {
           width: var(--sidebar-width) !important;
           min-width: var(--sidebar-width) !important;
@@ -2856,11 +3340,73 @@ export default function App() {
           <BarChart3 size={19} />
           Analytics
         </button>
-        <button className={page === "settings" ? "active" : ""} onClick={() => setPage("settings")}>
+        <button
+          className={showMobileMenu ? "active" : ""}
+          onClick={() => setShowMobileMenu((open) => !open)}
+          aria-expanded={showMobileMenu}
+          aria-label="Open dashboard navigation"
+        >
           <Settings size={19} />
           More
         </button>
       </nav>
+
+      {showMobileMenu && (
+        <>
+          <div
+            className="mobile-more-backdrop"
+            onClick={() => setShowMobileMenu(false)}
+            aria-hidden="true"
+          />
+
+          <div className="mobile-more-panel" role="dialog" aria-label="Dashboard navigation">
+            <div className="mobile-more-title">
+              <div>
+                <strong>Dashboard</strong>
+                <div><span>Navigate to any section</span></div>
+              </div>
+              <button
+                className="mobile-more-close"
+                onClick={() => setShowMobileMenu(false)}
+                aria-label="Close dashboard navigation"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="mobile-more-grid">
+              {[
+                ["overview", "Overview", LayoutDashboard],
+                ["person1", profiles[0]?.name || "Person 1", UserRound],
+                ["person2", profiles[1]?.name || "Person 2", UserRound],
+                ["shared", "Shared", UsersRound],
+                ["transactions", "Transactions", Receipt],
+                ["analytics", "Analytics", BarChart3],
+                ["budgets", "Budgets", Target],
+                ["savings", "Savings Goals", PiggyBank],
+                ["recurring", "Recurring", Repeat2],
+                ["bankbalance", "Bank Balance", Landmark],
+                ["receipts", "Receipts", Receipt],
+                ["reports", "Reports", FileText],
+                ["settings", "Settings", Settings]
+              ].map(([key, label, Icon]) => (
+                <button
+                  key={key}
+                  className={`mobile-more-item ${page === key ? "active" : ""}`}
+                  onClick={() => {
+                    setPage(key);
+                    setShowMobileMenu(false);
+                    window.scrollTo({ top: 0, behavior: "smooth" });
+                  }}
+                >
+                  <Icon size={18} />
+                  <span>{label}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        </>
+      )}
 
       {toast && (
         <div className="toast">
