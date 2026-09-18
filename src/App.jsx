@@ -2382,6 +2382,874 @@ export default function App() {
           }
         }
 
+
+        /* =========================================================
+           FINAL MOBILE UI PASS
+           Optimized for 320–430px phones
+           ========================================================= */
+
+        @media (max-width: 760px) {
+          /* ---- Global phone geometry ---- */
+          :root {
+            --mobile-gutter: 14px;
+            --mobile-radius: 16px;
+          }
+
+          html,
+          body,
+          #root,
+          .app-shell {
+            width: 100% !important;
+            max-width: 100% !important;
+            min-width: 0 !important;
+            overflow-x: hidden !important;
+          }
+
+          body {
+            -webkit-text-size-adjust: 100%;
+            text-size-adjust: 100%;
+          }
+
+          .app-shell .main {
+            width: 100% !important;
+            max-width: 100% !important;
+            min-width: 0 !important;
+            margin: 0 !important;
+            padding: 0 0 calc(104px + env(safe-area-inset-bottom)) !important;
+            overflow-x: hidden !important;
+          }
+
+          /* ---- Header ---- */
+          .topbar {
+            height: 62px !important;
+            min-height: 62px !important;
+            width: 100% !important;
+            padding: 8px 12px !important;
+            gap: 8px !important;
+            justify-content: space-between !important;
+            position: sticky !important;
+            top: 0 !important;
+            z-index: 1000 !important;
+          }
+
+          .mobile-brand {
+            display: flex !important;
+            flex-direction: column !important;
+            justify-content: center !important;
+            flex: 1 1 auto !important;
+            min-width: 0 !important;
+          }
+
+          .mobile-brand b {
+            font-size: 19px !important;
+            line-height: 1 !important;
+            letter-spacing: -.4px !important;
+          }
+
+          .mobile-brand span {
+            display: block !important;
+            margin-top: 3px !important;
+            font-size: 8px !important;
+            line-height: 1.1 !important;
+            white-space: nowrap !important;
+            overflow: hidden !important;
+            text-overflow: ellipsis !important;
+          }
+
+          .top-actions {
+            flex: 0 0 auto !important;
+            display: flex !important;
+            align-items: center !important;
+            gap: 6px !important;
+          }
+
+          /* Keep Refresh + Notifications + avatar visible on phones. */
+          .top-actions .icon-btn:first-child {
+            display: inline-flex !important;
+          }
+
+          .top-actions .icon-btn {
+            width: 34px !important;
+            height: 34px !important;
+            min-width: 34px !important;
+            padding: 0 !important;
+            border-radius: 10px !important;
+          }
+
+          .top-actions .icon-btn svg {
+            width: 16px !important;
+            height: 16px !important;
+          }
+
+          .account-menu-wrap > button {
+            width: 36px !important;
+            height: 36px !important;
+            min-width: 36px !important;
+            padding: 0 !important;
+            border-radius: 50% !important;
+            overflow: hidden !important;
+          }
+
+          .account-menu-wrap > button .avatar,
+          .account-menu-wrap > button img {
+            width: 100% !important;
+            height: 100% !important;
+            object-fit: cover !important;
+          }
+
+          .top-actions > div[style*="position: relative"] {
+            position: relative !important;
+          }
+
+          /* ---- Main content ---- */
+          .content {
+            width: 100% !important;
+            max-width: 100% !important;
+            padding: 18px var(--mobile-gutter) 0 !important;
+            margin: 0 !important;
+          }
+
+          .page-head {
+            width: 100% !important;
+            display: flex !important;
+            flex-direction: column !important;
+            align-items: stretch !important;
+            gap: 14px !important;
+            margin: 0 0 18px !important;
+          }
+
+          .page-head > div:first-child {
+            width: 100% !important;
+            min-width: 0 !important;
+          }
+
+          .eyebrow {
+            font-size: 9px !important;
+            line-height: 1.2 !important;
+            letter-spacing: 1.35px !important;
+            margin-bottom: 5px !important;
+          }
+
+          .page-head h1 {
+            font-size: 25px !important;
+            line-height: 1.12 !important;
+            letter-spacing: -.65px !important;
+            overflow-wrap: anywhere !important;
+          }
+
+          .page-head p {
+            max-width: 100% !important;
+            font-size: 13px !important;
+            line-height: 1.5 !important;
+            margin: 6px 0 0 !important;
+          }
+
+          .page-head > button,
+          .page-head .primary,
+          .page-head button.primary {
+            width: 100% !important;
+            min-height: 48px !important;
+            padding: 11px 14px !important;
+            font-size: 14px !important;
+            border-radius: 12px !important;
+          }
+
+          /* ---- Cards / grids ---- */
+          .stats-grid,
+          .people-grid,
+          .two-col,
+          .budget-grid,
+          .goal-grid,
+          .receipt-grid,
+          .settings-grid {
+            display: grid !important;
+            grid-template-columns: minmax(0, 1fr) !important;
+            width: 100% !important;
+            gap: 12px !important;
+            margin-bottom: 14px !important;
+          }
+
+          .settings-grid .panel:last-child {
+            grid-column: auto !important;
+          }
+
+          .stat-card,
+          .person-card,
+          .panel,
+          .budget-card,
+          .goal-card,
+          .receipt-card {
+            width: 100% !important;
+            max-width: 100% !important;
+            min-width: 0 !important;
+            box-sizing: border-box !important;
+            border-radius: var(--mobile-radius) !important;
+          }
+
+          .stat-card {
+            min-height: 100px !important;
+            padding: 15px !important;
+            gap: 12px !important;
+          }
+
+          .stat-icon {
+            width: 40px !important;
+            height: 40px !important;
+            min-width: 40px !important;
+            border-radius: 11px !important;
+          }
+
+          .stat-card span {
+            font-size: 11px !important;
+            line-height: 1.25 !important;
+          }
+
+          .stat-card strong {
+            font-size: 21px !important;
+            line-height: 1.15 !important;
+            margin: 4px 0 3px !important;
+            white-space: nowrap !important;
+          }
+
+          .stat-card small {
+            font-size: 10px !important;
+            line-height: 1.25 !important;
+          }
+
+          .person-card {
+            padding: 15px !important;
+          }
+
+          .person-top {
+            gap: 10px !important;
+          }
+
+          .person-top h3 {
+            font-size: 16px !important;
+            line-height: 1.25 !important;
+          }
+
+          .person-top span {
+            font-size: 10px !important;
+          }
+
+          .avatar {
+            width: 39px !important;
+            height: 39px !important;
+            min-width: 39px !important;
+          }
+
+          .mini-grid {
+            grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+            gap: 12px 8px !important;
+            margin-top: 15px !important;
+            padding-top: 13px !important;
+          }
+
+          .mini-grid small {
+            font-size: 9px !important;
+          }
+
+          .mini-grid b {
+            font-size: 12px !important;
+            line-height: 1.25 !important;
+          }
+
+          .panel {
+            padding: 15px !important;
+          }
+
+          .panel-head {
+            display: flex !important;
+            align-items: flex-start !important;
+            justify-content: space-between !important;
+            gap: 8px !important;
+            flex-wrap: wrap !important;
+            margin-bottom: 10px !important;
+          }
+
+          .panel-head h2,
+          .panel h2 {
+            font-size: 15px !important;
+            line-height: 1.25 !important;
+          }
+
+          .panel-head span {
+            font-size: 10px !important;
+            line-height: 1.35 !important;
+          }
+
+          /* ---- Charts ---- */
+          .two-col > .panel {
+            min-width: 0 !important;
+            overflow: hidden !important;
+          }
+
+          .recharts-responsive-container {
+            width: 100% !important;
+            max-width: 100% !important;
+            min-width: 0 !important;
+          }
+
+          .recharts-wrapper {
+            max-width: 100% !important;
+          }
+
+          .recharts-surface {
+            max-width: 100% !important;
+            overflow: visible !important;
+          }
+
+          .recharts-legend-wrapper {
+            max-width: 100% !important;
+            font-size: 9px !important;
+          }
+
+          /* ---- Segmented / scope controls ---- */
+          .segmented {
+            width: 100% !important;
+            grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+            gap: 4px !important;
+            padding: 4px !important;
+            margin-bottom: 14px !important;
+            border-radius: 11px !important;
+          }
+
+          .segmented button {
+            min-width: 0 !important;
+            min-height: 40px !important;
+            padding: 8px 5px !important;
+            font-size: 11px !important;
+            white-space: nowrap !important;
+            overflow: hidden !important;
+            text-overflow: ellipsis !important;
+          }
+
+          .scope-tabs {
+            width: 100% !important;
+            max-width: 100% !important;
+            overflow-x: auto !important;
+            scrollbar-width: none !important;
+            margin-bottom: 14px !important;
+          }
+
+          .scope-tabs::-webkit-scrollbar {
+            display: none !important;
+          }
+
+          .scope-tabs button {
+            flex: 0 0 auto !important;
+            min-height: 38px !important;
+            padding: 8px 11px !important;
+            font-size: 11px !important;
+            white-space: nowrap !important;
+          }
+
+          /* ---- Transaction search/filter ---- */
+          .toolbar {
+            display: grid !important;
+            grid-template-columns: minmax(0, 1fr) !important;
+            gap: 9px !important;
+            margin-bottom: 12px !important;
+          }
+
+          .search {
+            width: 100% !important;
+            min-width: 0 !important;
+            min-height: 44px !important;
+          }
+
+          .search input {
+            min-width: 0 !important;
+            font-size: 13px !important;
+          }
+
+          /* ---- Transaction list ---- */
+          .tx-list,
+          .transaction-list {
+            width: 100% !important;
+            min-width: 0 !important;
+          }
+
+          .tx-row,
+          .transaction-row {
+            width: 100% !important;
+            min-width: 0 !important;
+            gap: 9px !important;
+            padding: 11px 0 !important;
+          }
+
+          .tx-icon,
+          .transaction-icon {
+            width: 35px !important;
+            height: 35px !important;
+            min-width: 35px !important;
+          }
+
+          .tx-main,
+          .transaction-main {
+            min-width: 0 !important;
+          }
+
+          .tx-main b,
+          .transaction-main strong,
+          .transaction-main b {
+            display: block !important;
+            max-width: 100% !important;
+            font-size: 12px !important;
+            line-height: 1.3 !important;
+            white-space: nowrap !important;
+            overflow: hidden !important;
+            text-overflow: ellipsis !important;
+          }
+
+          .tx-main span,
+          .transaction-main span {
+            font-size: 9px !important;
+            line-height: 1.3 !important;
+          }
+
+          .tx-row > strong,
+          .transaction-row > strong {
+            flex: 0 0 auto !important;
+            font-size: 12px !important;
+            white-space: nowrap !important;
+          }
+
+          /* ---- Transactions table: horizontal scroll, no broken columns ---- */
+          .tx-table {
+            display: block !important;
+            width: 100% !important;
+            max-width: 100% !important;
+            overflow-x: auto !important;
+            overflow-y: hidden !important;
+            -webkit-overflow-scrolling: touch !important;
+            scrollbar-width: thin !important;
+          }
+
+          .tx-table .table-head,
+          .tx-table .table-row {
+            min-width: 690px !important;
+          }
+
+          .table-head,
+          .table-row {
+            font-size: 11px !important;
+          }
+
+          .table-head {
+            padding: 10px !important;
+          }
+
+          .table-row {
+            min-height: 58px !important;
+            padding: 10px !important;
+          }
+
+          /* ---- Forms ---- */
+          form {
+            gap: 12px !important;
+          }
+
+          .form-grid,
+          .inline-form {
+            grid-template-columns: minmax(0, 1fr) !important;
+            gap: 11px !important;
+          }
+
+          .field-label,
+          label {
+            font-size: 11px !important;
+            line-height: 1.25 !important;
+          }
+
+          input,
+          select,
+          textarea {
+            width: 100% !important;
+            min-width: 0 !important;
+            min-height: 45px !important;
+            padding: 11px 12px !important;
+            font-size: 14px !important;
+            border-radius: 10px !important;
+          }
+
+          textarea {
+            min-height: 90px !important;
+            resize: vertical !important;
+          }
+
+          .person-picker {
+            grid-template-columns: 1fr !important;
+            gap: 8px !important;
+          }
+
+          .person-option {
+            min-height: 50px !important;
+            padding: 9px 10px !important;
+          }
+
+          .person-option b {
+            font-size: 11px !important;
+          }
+
+          .person-option small {
+            font-size: 9px !important;
+          }
+
+          /* ---- Add/Edit modal ---- */
+          .modal-backdrop {
+            padding: 8px !important;
+            align-items: flex-end !important;
+          }
+
+          .modal {
+            width: 100% !important;
+            max-width: 100% !important;
+            max-height: calc(100dvh - 16px) !important;
+            padding: 16px !important;
+            border-radius: 20px 20px 14px 14px !important;
+            overflow-x: hidden !important;
+            overflow-y: auto !important;
+          }
+
+          .modal-head {
+            gap: 8px !important;
+            margin-bottom: 14px !important;
+          }
+
+          .modal-head h2 {
+            font-size: 19px !important;
+            line-height: 1.2 !important;
+          }
+
+          .modal-actions {
+            display: grid !important;
+            grid-template-columns: 1fr 1.35fr !important;
+            gap: 8px !important;
+            position: sticky !important;
+            bottom: -16px !important;
+            margin: 12px -16px -16px !important;
+            padding: 10px 16px calc(10px + env(safe-area-inset-bottom)) !important;
+            background: rgba(255,255,255,.96) !important;
+            backdrop-filter: blur(10px) !important;
+            -webkit-backdrop-filter: blur(10px) !important;
+          }
+
+          .modal-actions button {
+            width: 100% !important;
+            min-height: 46px !important;
+            font-size: 13px !important;
+          }
+
+          /* ---- Reports ---- */
+          .report-controls {
+            display: grid !important;
+            grid-template-columns: 1fr 1fr !important;
+            gap: 9px !important;
+            align-items: stretch !important;
+            justify-content: stretch !important;
+          }
+
+          .report-controls label {
+            width: 100% !important;
+            min-width: 0 !important;
+          }
+
+          .report-controls button {
+            width: 100% !important;
+            min-height: 44px !important;
+            padding: 9px 8px !important;
+            font-size: 11px !important;
+          }
+
+          .report-controls .primary {
+            grid-column: 1 / -1 !important;
+            min-height: 47px !important;
+            font-size: 13px !important;
+          }
+
+          .report-transaction-row {
+            min-height: 60px !important;
+            gap: 8px !important;
+            padding: 9px 0 !important;
+          }
+
+          .report-transaction-main {
+            gap: 8px !important;
+          }
+
+          .report-transaction-icon {
+            width: 34px !important;
+            height: 34px !important;
+            min-width: 34px !important;
+            border-radius: 9px !important;
+          }
+
+          .report-transaction-info strong {
+            font-size: 12px !important;
+            max-width: 150px !important;
+          }
+
+          .report-transaction-info span {
+            font-size: 9px !important;
+          }
+
+          .report-transaction-amount {
+            min-width: 74px !important;
+            font-size: 12px !important;
+          }
+
+          /* ---- Bank Balance ---- */
+          .bank-waiting-row {
+            display: grid !important;
+            grid-template-columns: 36px minmax(0, 1fr) !important;
+            row-gap: 7px !important;
+            column-gap: 9px !important;
+            min-height: auto !important;
+            padding: 12px !important;
+          }
+
+          .bank-waiting-row .bank-waiting-title {
+            font-size: 13px !important;
+            white-space: nowrap !important;
+          }
+
+          .bank-waiting-row .bank-waiting-meta {
+            font-size: 9px !important;
+          }
+
+          .bank-waiting-row .bank-waiting-amount {
+            grid-column: 2 !important;
+            text-align: left !important;
+            font-size: 12px !important;
+          }
+
+          .bank-waiting-row select {
+            grid-column: 2 !important;
+            min-height: 42px !important;
+            font-size: 12px !important;
+          }
+
+          /* Generic bank/recurring rows: stack safely on narrow screens. */
+          .recurring-row {
+            min-height: 62px !important;
+            padding: 11px !important;
+            gap: 9px !important;
+            overflow: hidden !important;
+          }
+
+          .recurring-row strong {
+            font-size: 13px !important;
+            line-height: 1.25 !important;
+          }
+
+          .recurring-row span,
+          .recurring-row small {
+            font-size: 9px !important;
+            line-height: 1.3 !important;
+          }
+
+          /* ---- Budgets / goals / receipts / settings ---- */
+          .budget-card,
+          .goal-card,
+          .receipt-card {
+            padding: 15px !important;
+          }
+
+          .budget-card strong,
+          .goal-card strong {
+            font-size: 19px !important;
+          }
+
+          .goal-symbol {
+            font-size: 22px !important;
+          }
+
+          .receipt-placeholder {
+            height: 105px !important;
+          }
+
+          .setting-row {
+            gap: 12px !important;
+            padding: 12px 0 !important;
+          }
+
+          .setting-row > div {
+            min-width: 0 !important;
+          }
+
+          .setting-row strong {
+            font-size: 12px !important;
+          }
+
+          .setting-row span {
+            font-size: 9px !important;
+            line-height: 1.35 !important;
+          }
+
+          /* ---- Settlements / history ---- */
+          .settle-people {
+            gap: 8px !important;
+            font-size: 10px !important;
+            flex-wrap: wrap !important;
+          }
+
+          .settlement {
+            padding: 15px !important;
+          }
+
+          .settlement strong {
+            font-size: 17px !important;
+          }
+
+          .history-row {
+            gap: 10px !important;
+            font-size: 10px !important;
+          }
+
+          /* ---- More drawer ---- */
+          .mobile-more-panel {
+            left: 8px !important;
+            right: 8px !important;
+            bottom: calc(82px + env(safe-area-inset-bottom)) !important;
+            max-height: min(70dvh, 560px) !important;
+            padding: 11px !important;
+            border-radius: 19px !important;
+          }
+
+          .mobile-more-title {
+            padding: 6px 7px 10px !important;
+          }
+
+          .mobile-more-title strong {
+            font-size: 15px !important;
+          }
+
+          .mobile-more-title span {
+            font-size: 10px !important;
+          }
+
+          .mobile-more-grid {
+            grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+            gap: 7px !important;
+          }
+
+          .mobile-more-item {
+            min-height: 47px !important;
+            padding: 8px !important;
+            gap: 7px !important;
+            border-radius: 12px !important;
+            font-size: 11px !important;
+          }
+
+          .mobile-more-item svg {
+            width: 16px !important;
+            height: 16px !important;
+          }
+
+          /* ---- Bottom navigation ---- */
+          .mobile-nav {
+            left: 7px !important;
+            right: 7px !important;
+            bottom: calc(7px + env(safe-area-inset-bottom)) !important;
+            min-height: 64px !important;
+            padding: 6px !important;
+            gap: 3px !important;
+            border-radius: 18px !important;
+            box-shadow: 0 12px 35px rgba(20,10,40,.18) !important;
+          }
+
+          .mobile-nav button {
+            min-height: 51px !important;
+            padding: 6px 2px !important;
+            border-radius: 12px !important;
+            gap: 3px !important;
+            font-size: 8px !important;
+            line-height: 1.05 !important;
+          }
+
+          .mobile-nav button svg {
+            width: 17px !important;
+            height: 17px !important;
+          }
+
+          .mobile-nav button.add {
+            min-height: 55px !important;
+            margin-top: -3px !important;
+            margin-bottom: -3px !important;
+            border-radius: 15px !important;
+          }
+
+          /* ---- Notifications / account dropdown ---- */
+          .top-actions [style*="width: 370px"] {
+            position: absolute !important;
+            right: -4px !important;
+            top: calc(100% + 8px) !important;
+            width: min(350px, calc(100vw - 24px)) !important;
+            max-width: calc(100vw - 24px) !important;
+            max-height: 70dvh !important;
+            overflow-y: auto !important;
+          }
+
+          .account-menu-wrap > div {
+            max-width: calc(100vw - 24px) !important;
+          }
+
+          /* ---- Toast ---- */
+          .toast {
+            left: 12px !important;
+            right: 12px !important;
+            bottom: calc(80px + env(safe-area-inset-bottom)) !important;
+            width: auto !important;
+            max-width: none !important;
+            font-size: 11px !important;
+            padding: 10px 12px !important;
+            border-radius: 11px !important;
+          }
+
+          /* Disable desktop hover movement on touch devices. */
+          .card:hover,
+          .stat-card:hover,
+          .person-card:hover,
+          .recent-item:hover,
+          .recurring-row:hover,
+          .bank-card:hover,
+          .goal-card:hover,
+          .budget-card:hover,
+          .setting-card:hover,
+          .primary:hover,
+          .secondary:hover,
+          .icon-btn:hover {
+            transform: none !important;
+            box-shadow: inherit !important;
+          }
+        }
+
+        @media (max-width: 360px) {
+          .content {
+            padding-left: 11px !important;
+            padding-right: 11px !important;
+          }
+
+          .page-head h1 {
+            font-size: 23px !important;
+          }
+
+          .mobile-nav button {
+            font-size: 7px !important;
+          }
+
+          .mobile-nav button svg {
+            width: 16px !important;
+            height: 16px !important;
+          }
+
+          .stat-card strong {
+            font-size: 19px !important;
+          }
+        }
+
         .app-shell .sidebar {
           width: var(--sidebar-width) !important;
           min-width: var(--sidebar-width) !important;
