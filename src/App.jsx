@@ -41,7 +41,11 @@ import {
   ArrowRight,
   RefreshCw,
   Camera,
-  UserCircle
+  UserCircle,
+  ChevronLeft,
+  ChevronRight,
+  Clock,
+  CheckCircle2
 } from "lucide-react";
 
 import {
@@ -178,6 +182,7 @@ const iconFor = (cat) =>
     "Rent & Home": Home,
     Groceries: ShoppingCart,
     Transport: Car,
+    Shopping: ShoppingCart,
     Entertainment: Gamepad2,
     "Mobile & Internet": Smartphone,
     Fitness: Dumbbell,
@@ -185,8 +190,56 @@ const iconFor = (cat) =>
     Health: HeartPulse,
     "EMI / Loan": CreditCard,
     Gifts: Gift,
-    Travel: Plane
+    Travel: Plane,
+    Other: MoreHorizontal
   }[cat] || MoreHorizontal);
+
+const transactionLabel = (transaction) => {
+  const type = transaction?.type;
+
+  if (type === "income") {
+    return (
+      transaction.merchant?.trim() ||
+      (INCOME_SOURCES.includes(transaction.category)
+        ? transaction.category
+        : "Income")
+    );
+  }
+
+  if (type === "savings") {
+    return transaction.merchant?.trim() || "Savings";
+  }
+
+  if (type === "shared_expense") {
+    return (
+      transaction.merchant?.trim() ||
+      transaction.category ||
+      "Shared Expense"
+    );
+  }
+
+  return (
+    transaction.merchant?.trim() ||
+    transaction.category ||
+    "Expense"
+  );
+};
+
+const transactionIcon = (transaction) => {
+  if (transaction?.type === "income") {
+    return ArrowUpRight;
+  }
+
+  if (transaction?.type === "savings") {
+    return PiggyBank;
+  }
+
+  if (transaction?.type === "shared_expense") {
+    return UsersRound;
+  }
+
+  return iconFor(transaction?.category);
+};
 
 
 // Compress profile pictures before uploading.
@@ -227,6 +280,105 @@ const optimizeAvatar = (file) =>
 
 export default function App() {
   const [session, setSession] = useState(null);
+
+  useEffect(() => {
+    if (
+      window.matchMedia("(pointer: coarse)").matches ||
+      window.matchMedia("(prefers-reduced-motion: reduce)").matches
+    ) return;
+
+    const cursor = document.createElement("div");
+    cursor.className = "us-purple-cursor";
+    document.body.appendChild(cursor);
+
+    let raf = 0;
+    let x = -100, y = -100, targetX = -100, targetY = -100;
+
+    const animate = () => {
+      x += (targetX - x) * 0.22;
+      y += (targetY - y) * 0.22;
+      cursor.style.transform =
+        `translate3d(${x}px, ${y}px, 0) translate(-50%, -50%)`;
+      raf = requestAnimationFrame(animate);
+    };
+
+    const move = (e) => {
+      targetX = e.clientX;
+      targetY = e.clientY;
+      cursor.classList.add("is-visible");
+    };
+
+    const hover = (e) => {
+      const interactive = e.target?.closest?.(
+        "button, a, select, input, textarea, [role='button']"
+      );
+      cursor.classList.toggle("is-hover", Boolean(interactive));
+    };
+
+    const leave = () => cursor.classList.remove("is-visible");
+
+    document.addEventListener("mousemove", move);
+    document.addEventListener("mouseover", hover);
+    document.addEventListener("mouseout", hover);
+    document.addEventListener("mouseleave", leave);
+    raf = requestAnimationFrame(animate);
+
+    return () => {
+      cancelAnimationFrame(raf);
+      document.removeEventListener("mousemove", move);
+      document.removeEventListener("mouseover", hover);
+      document.removeEventListener("mouseout", hover);
+      document.removeEventListener("mouseleave", leave);
+      cursor.remove();
+    };
+  }, []);
+
+  // Subtle custom cursor on desktop. It disappears on touch devices.
+  useEffect(() => {
+    if (window.matchMedia("(pointer: coarse)").matches) return;
+
+    const dot = document.createElement("div");
+    dot.className = "us-cursor-dot";
+    document.body.appendChild(dot);
+
+    let visible = false;
+
+    const move = (event) => {
+      dot.style.left = `${event.clientX}px`;
+      dot.style.top = `${event.clientY}px`;
+
+      if (!visible) {
+        visible = true;
+        dot.style.opacity = "1";
+      }
+    };
+
+    const overInteractive = (event) => {
+      const target = event.target?.closest?.(
+        "button, a, select, input, textarea, [role='button']"
+      );
+
+      dot.classList.toggle("is-active", Boolean(target));
+    };
+
+    const leave = () => {
+      dot.style.opacity = "0";
+      dot.classList.remove("is-active");
+    };
+
+    document.addEventListener("mousemove", move);
+    document.addEventListener("mouseover", overInteractive);
+    document.addEventListener("mouseout", overInteractive);
+    document.addEventListener("mouseleave", leave);
+
+    return () => {
+      document.removeEventListener("mousemove", move);
+      document.removeEventListener("mouseover", overInteractive);
+      document.removeEventListener("mouseout", overInteractive);
+      document.removeEventListener("mouseleave", leave);
+      dot.remove();
+    };
+  }, []);
   const [loading, setLoading] = useState(true);
 
   const [page, setPage] = useState("overview");
@@ -247,6 +399,7 @@ export default function App() {
 
   const [toast, setToast] = useState("");
   const [dark, setDark] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
   // Profile picture is stored in Supabase Storage and the public URL is
   // stored on the shared account row. This keeps the picture available
@@ -254,6 +407,22 @@ export default function App() {
   const [avatarUrl, setAvatarUrl] = useState("");
   const [avatarBusy, setAvatarBusy] = useState(false);
   const [showAccountMenu, setShowAccountMenu] = useState(false);
+  const [reminders, setReminders] = useState([]);
+  const [showNotifications, setShowNotifications] = useState(false);
+  const [showReminderForm, setShowReminderForm] = useState(false);
+  const [reminderTitle, setReminderTitle] = useState("");
+  const [reminderNote, setReminderNote] = useState("");
+  const [reminderAt, setReminderAt] = useState("");
+  const [reminderBusy, setReminderBusy] = useState(false);
+  const [notifiedReminderIds, setNotifiedReminderIds] = useState(() => {
+    try {
+      return JSON.parse(
+        localStorage.getItem("us_notified_reminders") || "[]"
+      );
+    } catch {
+      return [];
+    }
+  });
 
 
   // ==========================================================
@@ -299,6 +468,7 @@ export default function App() {
         setSettlements([]);
         setBankAccounts([]);
         setSettings(null);
+        setReminders([]);
         setLoading(false);
       }
     });
@@ -424,7 +594,8 @@ export default function App() {
       r,
       s,
       ba,
-      st
+      st,
+      rm
     ] = await Promise.all([
       supabase
         .from("accounts")
@@ -489,7 +660,15 @@ export default function App() {
         .from("settings")
         .select("*")
         .eq("account_id", aid)
-        .single()
+        .single(),
+
+      supabase
+        .from("reminders")
+        .select("*")
+        .eq("account_id", aid)
+        .order("reminder_at", {
+          ascending: true
+        })
     ]);
 
 
@@ -609,6 +788,13 @@ export default function App() {
     } else if (ba.error) {
       console.error("Bank accounts load failed:", ba.error);
       setBankAccounts([]);
+    }
+
+    if (rm.data) {
+      setReminders(rm.data);
+    } else if (rm.error) {
+      console.error("Reminders load failed:", rm.error);
+      setReminders([]);
     }
 
     if (st.data) {
@@ -843,6 +1029,230 @@ export default function App() {
       .reduce((sum, bank) => sum + bankStatsForApp(bank).closing, 0);
 
   // ==========================================================
+  // NOTIFICATIONS + REMINDERS
+  // ==========================================================
+
+  const notificationItems = [
+    ...reminders
+      .filter((r) => !r.completed)
+      .map((r) => ({
+        kind: "reminder",
+        id: r.id,
+        title: r.title,
+        text: r.note || "Reminder",
+        date: r.reminder_at,
+        reminder: r
+      })),
+    ...recurring
+      .filter((r) => r.next_due_date)
+      .filter((r) => {
+        const due = localDateKey(r.next_due_date);
+        const now = new Date();
+        const future = new Date();
+        future.setDate(future.getDate() + 7);
+        return due >= localDateKey(now) && due <= localDateKey(future);
+      })
+      .map((r) => ({
+        kind: "recurring",
+        id: `recurring-${r.id}`,
+        title: `${r.name} due soon`,
+        text: `${money(r.amount)} · ${r.profile_id ? profiles.find((p) => p.id === r.profile_id)?.name || "" : "Shared"}`,
+        date: r.next_due_date
+      })),
+    ...transactions.slice(0, 5).map((t) => ({
+      kind: "activity",
+      id: `transaction-${t.id}`,
+      title: transactionLabel(t),
+      text: `${t.type === "income" ? "Income" : t.type === "savings" ? "Savings" : "Expense"} · ${money(t.amount)}`,
+      date: t.transaction_date
+    }))
+  ];
+
+  const pendingReminders = reminders.filter(
+    (r) => !r.completed && new Date(r.reminder_at).getTime() <= Date.now()
+  );
+
+  const notificationCount =
+    pendingReminders.length +
+    recurring.filter((r) => {
+      if (!r.next_due_date) return false;
+      const today = localDateKey(new Date());
+      const due = localDateKey(r.next_due_date);
+      const limit = new Date();
+      limit.setDate(limit.getDate() + 7);
+      return due >= today && due <= localDateKey(limit);
+    }).length;
+
+  const resetReminderForm = () => {
+    setReminderTitle("");
+    setReminderNote("");
+    setReminderAt("");
+    setShowReminderForm(false);
+  };
+
+  const addReminder = async () => {
+    if (!account?.id || !reminderTitle.trim() || !reminderAt) {
+      showToast("Enter a reminder title and date/time.");
+      return;
+    }
+
+    setReminderBusy(true);
+
+    const { data, error } = await supabase
+      .from("reminders")
+      .insert({
+        account_id: account.id,
+        title: reminderTitle.trim(),
+        note: reminderNote.trim() || null,
+        reminder_at: new Date(reminderAt).toISOString(),
+        completed: false
+      })
+      .select("*")
+      .single();
+
+    setReminderBusy(false);
+
+    if (error) {
+      console.error("Reminder create failed:", error);
+      showToast(error.message);
+      return;
+    }
+
+    setReminders((items) =>
+      [...items, data].sort(
+        (a, b) =>
+          new Date(a.reminder_at) -
+          new Date(b.reminder_at)
+      )
+    );
+
+    resetReminderForm();
+    showToast("Reminder added.");
+  };
+
+  const completeReminder = async (id) => {
+    const { error } = await supabase
+      .from("reminders")
+      .update({ completed: true })
+      .eq("id", id)
+      .eq("account_id", account.id);
+
+    if (error) {
+      showToast(error.message);
+      return;
+    }
+
+    setReminders((items) =>
+      items.map((r) =>
+        r.id === id
+          ? { ...r, completed: true }
+          : r
+      )
+    );
+
+    showToast("Reminder completed.");
+  };
+
+  const deleteReminder = async (id) => {
+    const { error } = await supabase
+      .from("reminders")
+      .delete()
+      .eq("id", id)
+      .eq("account_id", account.id);
+
+    if (error) {
+      showToast(error.message);
+      return;
+    }
+
+    setReminders((items) =>
+      items.filter((r) => r.id !== id)
+    );
+
+    showToast("Reminder deleted.");
+  };
+
+  const enableBrowserNotifications = async () => {
+    if (!("Notification" in window)) {
+      showToast("Browser notifications are not supported here.");
+      return;
+    }
+
+    const permission = await Notification.requestPermission();
+
+    if (permission === "granted") {
+      showToast("Browser notifications enabled.");
+    } else {
+      showToast("Browser notifications are blocked.");
+    }
+  };
+
+  // Check due reminders while the website is open.
+  useEffect(() => {
+    if (!account?.id || !reminders.length) return;
+
+    const checkReminders = async () => {
+      const now = Date.now();
+      const alreadyNotified = new Set(notifiedReminderIds);
+      let changed = false;
+
+      for (const reminder of reminders) {
+        if (
+          reminder.completed ||
+          new Date(reminder.reminder_at).getTime() > now ||
+          alreadyNotified.has(reminder.id)
+        ) {
+          continue;
+        }
+
+        showToast(`Reminder: ${reminder.title}`);
+
+        if (
+          "Notification" in window &&
+          Notification.permission === "granted"
+        ) {
+          new Notification(
+            `US · ${reminder.title}`,
+            {
+              body:
+                reminder.note ||
+                "Your finance reminder is due.",
+              icon: avatarUrl || undefined
+            }
+          );
+        }
+
+        alreadyNotified.add(reminder.id);
+        changed = true;
+      }
+
+      if (changed) {
+        const ids = [...alreadyNotified];
+        setNotifiedReminderIds(ids);
+
+        try {
+          localStorage.setItem(
+            "us_notified_reminders",
+            JSON.stringify(ids.slice(-100))
+          );
+        } catch {}
+      }
+    };
+
+    checkReminders();
+    const timer = setInterval(checkReminders, 30000);
+
+    return () => clearInterval(timer);
+  }, [account?.id, reminders, avatarUrl]);
+
+  const reminderInputValue = () => {
+    const d = new Date();
+    d.setMinutes(d.getMinutes() + 60);
+    const pad = (n) => String(n).padStart(2, "0");
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  };
+
+  // ==========================================================
   // LOGOUT
   // ==========================================================
 
@@ -867,6 +1277,7 @@ export default function App() {
     setSettlements([]);
     setBankAccounts([]);
     setSettings(null);
+    setReminders([]);
     setPage("overview");
   };
 
@@ -1027,13 +1438,520 @@ export default function App() {
   // ==========================================================
 
   return (
-    <div className="app-shell">
+    <div
+      className={
+        sidebarCollapsed
+          ? "app-shell sidebar-is-collapsed"
+          : "app-shell"
+      }
+      style={{
+        "--sidebar-width": sidebarCollapsed
+          ? "76px"
+          : "245px"
+      }}
+    >
+
+      <style>{`
+        /* =========================================================
+           MONEY COLORS
+           ========================================================= */
+
+        .money-positive {
+          color: #15803d !important;
+          font-weight: 700 !important;
+          transition: color 160ms ease, transform 160ms ease;
+        }
+
+        .money-negative {
+          color: #dc2626 !important;
+          font-weight: 700 !important;
+          transition: color 160ms ease, transform 160ms ease;
+        }
+
+        /* Chart hover polish */
+        .recharts-bar-rectangle,
+        .recharts-line-dot {
+          transition: opacity 180ms ease, filter 180ms ease;
+        }
+
+        .recharts-bar-rectangle:hover {
+          filter: brightness(1.05) saturate(1.12);
+        }
+
+        .report-transaction-row:hover .money-positive,
+        .report-transaction-row:hover .money-negative {
+          transform: translateX(-2px);
+        }
+
+        /* =========================================================
+           REPORT TRANSACTION ROW FIX
+           ========================================================= */
+
+        .report-transaction-row {
+          display: flex !important;
+          align-items: center !important;
+          justify-content: space-between !important;
+          gap: 20px !important;
+          width: 100% !important;
+          min-height: 68px !important;
+          padding: 12px 4px !important;
+          box-sizing: border-box !important;
+        }
+
+        .report-transaction-main {
+          display: flex !important;
+          align-items: center !important;
+          gap: 12px !important;
+          min-width: 0 !important;
+          flex: 1 1 auto !important;
+        }
+
+        .report-transaction-icon {
+          width: 40px !important;
+          height: 40px !important;
+          min-width: 40px !important;
+          border-radius: 11px !important;
+          display: grid !important;
+          place-items: center !important;
+          background: #f0e7ff !important;
+          color: #6d28d9 !important;
+          font-size: 17px !important;
+          flex-shrink: 0 !important;
+        }
+
+        .report-transaction-info {
+          display: flex !important;
+          flex-direction: column !important;
+          gap: 4px !important;
+          min-width: 0 !important;
+        }
+
+        .report-transaction-info strong {
+          display: block !important;
+          font-size: 14px !important;
+          line-height: 1.3 !important;
+          font-weight: 700 !important;
+          white-space: nowrap !important;
+          overflow: hidden !important;
+          text-overflow: ellipsis !important;
+        }
+
+        .report-transaction-info span {
+          display: block !important;
+          font-size: 11px !important;
+          line-height: 1.3 !important;
+          color: #7b7285 !important;
+          white-space: nowrap !important;
+        }
+
+        .report-transaction-amount {
+          display: block !important;
+          flex: 0 0 auto !important;
+          min-width: 105px !important;
+          text-align: right !important;
+          font-size: 14px !important;
+          line-height: 1.3 !important;
+          font-weight: 700 !important;
+          white-space: nowrap !important;
+        }
+
+        @media (max-width: 600px) {
+          .report-transaction-row {
+            gap: 10px !important;
+          }
+
+          .report-transaction-icon {
+            width: 36px !important;
+            height: 36px !important;
+            min-width: 36px !important;
+          }
+
+          .report-transaction-amount {
+            min-width: 82px !important;
+            font-size: 13px !important;
+          }
+        }
+
+
+        /* =========================================================
+           INTERACTION + CURSOR POLISH
+           ========================================================= */
+        @media (pointer: fine) {
+          * {
+            cursor: none !important;
+          }
+        }
+
+        .us-purple-cursor {
+          position: fixed;
+          left: 0;
+          top: 0;
+          width: 12px;
+          height: 12px;
+          border-radius: 50%;
+          background: #7c3aed;
+          border: 2px solid #ffffff;
+          box-shadow:
+            0 0 0 5px rgba(124, 58, 237, .12),
+            0 4px 14px rgba(76, 29, 149, .22);
+          pointer-events: none;
+          z-index: 2147483647;
+          opacity: 0;
+          transform: translate3d(-100px, -100px, 0) translate(-50%, -50%);
+          transition:
+            width 140ms ease,
+            height 140ms ease,
+            opacity 140ms ease,
+            background-color 140ms ease,
+            box-shadow 140ms ease;
+          will-change: transform;
+        }
+
+        .us-purple-cursor.is-visible {
+          opacity: 1;
+        }
+
+        .us-purple-cursor.is-hover {
+          width: 18px;
+          height: 18px;
+          background: #8b5cf6;
+          box-shadow:
+            0 0 0 6px rgba(124, 58, 237, .10),
+            0 5px 18px rgba(76, 29, 149, .24);
+        }
+
+        @media (pointer: coarse), (prefers-reduced-motion: reduce) {
+          .us-purple-cursor {
+            display: none !important;
+          }
+
+          * {
+            cursor: auto !important;
+          }
+        }
+
+          button,
+          a,
+          select,
+          input[type="checkbox"],
+          input[type="radio"],
+          summary,
+          [role="button"],
+          input,
+          textarea {
+            cursor: url("/Busy-Cloud.ani"), auto;
+          }
+        }
+
+        button,
+        a,
+        select,
+        input[type="checkbox"],
+        input[type="radio"],
+        summary,
+        [role="button"] {
+          cursor: pointer;
+        }
+
+        input,
+        textarea {
+          cursor: text;
+        }
+
+        button,
+        .card,
+        .stat-card,
+        .person-card,
+        .recent-item,
+        .recurring-row,
+        .bank-card,
+        .goal-card,
+        .budget-card,
+        .setting-card,
+        .icon-btn,
+        .primary,
+        .secondary,
+        select,
+        input,
+        textarea {
+          transition:
+            transform 180ms ease,
+            box-shadow 180ms ease,
+            border-color 180ms ease,
+            background-color 180ms ease,
+            color 180ms ease,
+            opacity 180ms ease;
+        }
+
+        button:active,
+        .primary:active,
+        .secondary:active,
+        .icon-btn:active {
+          transform: scale(0.97);
+        }
+
+        button:focus-visible,
+        a:focus-visible,
+        input:focus-visible,
+        select:focus-visible,
+        textarea:focus-visible {
+          outline: 3px solid rgba(124, 58, 237, .18);
+          outline-offset: 2px;
+        }
+
+        .primary:hover,
+        button.primary:hover {
+          transform: translateY(-2px);
+          box-shadow: 0 9px 22px rgba(109, 40, 217, .22);
+        }
+
+        .secondary:hover {
+          transform: translateY(-1px);
+        }
+
+        .icon-btn:hover {
+          transform: translateY(-2px);
+          box-shadow: 0 7px 18px rgba(20, 10, 40, .10);
+          border-color: rgba(124, 58, 237, .25) !important;
+        }
+
+        .card:hover,
+        .stat-card:hover,
+        .person-card:hover,
+        .recent-item:hover,
+        .recurring-row:hover,
+        .bank-card:hover,
+        .goal-card:hover,
+        .budget-card:hover,
+        .setting-card:hover {
+          transform: translateY(-2px);
+          box-shadow: 0 10px 28px rgba(30, 20, 50, .07);
+        }
+
+        .sidebar button,
+        .sidebar a {
+          transition:
+            transform 160ms ease,
+            background-color 160ms ease,
+            color 160ms ease;
+        }
+
+        .sidebar button:hover,
+        .sidebar a:hover {
+          transform: translateX(3px);
+        }
+
+        .topbar {
+          position: relative;
+          z-index: 20;
+        }
+
+        .main > * {
+          animation: pageContentIn 360ms cubic-bezier(.22, 1, .36, 1);
+        }
+
+        @keyframes pageContentIn {
+          from {
+            opacity: 0;
+            transform: translateY(8px);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
+
+        @keyframes softPulse {
+          0%, 100% {
+            box-shadow: 0 0 0 0 rgba(124, 58, 237, 0);
+          }
+          50% {
+            box-shadow: 0 0 0 5px rgba(124, 58, 237, .08);
+          }
+        }
+
+        .top-actions .icon-btn[aria-label="Notifications"] {
+          position: relative;
+        }
+
+        .top-actions .icon-btn[aria-label="Notifications"]:has(
+          span[style*="background: #7c3aed"]
+        ) {
+          animation: softPulse 2.4s ease-in-out infinite;
+        }
+
+        input:hover,
+        select:hover,
+        textarea:hover {
+          border-color: rgba(124, 58, 237, .28) !important;
+        }
+
+        input:focus,
+        select:focus,
+        textarea:focus {
+          border-color: #7c3aed !important;
+          box-shadow: 0 0 0 4px rgba(124, 58, 237, .08);
+        }
+
+        .account-menu-wrap > button:hover {
+          transform: translateY(-1px);
+          box-shadow: 0 8px 20px rgba(20, 10, 40, .10) !important;
+        }
+
+        .account-menu-wrap .secondary:hover {
+          background: #f6f1ff;
+          border-color: rgba(124, 58, 237, .18);
+        }
+
+        /* Custom cursor */
+        @media (prefers-reduced-motion: reduce) {
+          *,
+          *::before,
+          *::after {
+            animation-duration: .01ms !important;
+            animation-iteration-count: 1 !important;
+            transition-duration: .01ms !important;
+            scroll-behavior: auto !important;
+          }
+
+          .us-cursor-dot {
+            display: none;
+          }
+        }
+
+        .bank-waiting-row {
+          display: grid !important;
+          grid-template-columns: 42px minmax(180px, 240px) 120px minmax(260px, 1fr) !important;
+          align-items: center !important;
+          column-gap: 14px !important;
+          min-height: 82px !important;
+          padding: 14px 16px !important;
+          box-sizing: border-box !important;
+        }
+
+        .bank-waiting-row .bank-waiting-title {
+          display: block !important;
+          min-width: 0 !important;
+          font-size: 15px !important;
+          line-height: 1.25 !important;
+          font-weight: 700 !important;
+          white-space: nowrap !important;
+          overflow: hidden !important;
+          text-overflow: ellipsis !important;
+        }
+
+        .bank-waiting-row .bank-waiting-meta {
+          display: block !important;
+          margin-top: 4px !important;
+          font-size: 12px !important;
+          line-height: 1.3 !important;
+          white-space: nowrap !important;
+          overflow: hidden !important;
+          text-overflow: ellipsis !important;
+        }
+
+        .bank-waiting-row .bank-waiting-amount {
+          display: block !important;
+          font-size: 15px !important;
+          line-height: 1.25 !important;
+          font-weight: 700 !important;
+          white-space: nowrap !important;
+          text-align: right !important;
+        }
+
+        .bank-waiting-row select {
+          width: 100% !important;
+          min-width: 0 !important;
+          height: 44px !important;
+          padding: 0 12px !important;
+          font-size: 14px !important;
+          line-height: 1.2 !important;
+        }
+
+        @media (max-width: 900px) {
+          .bank-waiting-row {
+            grid-template-columns: 42px minmax(150px, 1fr) 110px !important;
+          }
+
+          .bank-waiting-row select {
+            grid-column: 2 / -1 !important;
+          }
+        }
+
+        @media (max-width: 600px) {
+          .bank-waiting-row {
+            grid-template-columns: 40px minmax(0, 1fr) !important;
+            row-gap: 8px !important;
+          }
+
+          .bank-waiting-row .bank-waiting-amount {
+            grid-column: 2 !important;
+            text-align: left !important;
+          }
+
+          .bank-waiting-row select {
+            grid-column: 2 !important;
+          }
+        }
+
+        .app-shell {
+          --sidebar-width: 245px;
+        }
+
+        .app-shell .sidebar {
+          width: var(--sidebar-width) !important;
+          min-width: var(--sidebar-width) !important;
+          max-width: var(--sidebar-width) !important;
+          transition: width 180ms ease, min-width 180ms ease;
+        }
+
+        .app-shell .main {
+          margin-left: var(--sidebar-width) !important;
+          width: calc(100% - var(--sidebar-width)) !important;
+          min-width: 0;
+          transition: margin-left 180ms ease, width 180ms ease;
+        }
+
+        .sidebar-toggle {
+          transition: all 180ms ease;
+        }
+
+        @media (max-width: 1000px) and (min-width: 761px) {
+          .app-shell {
+            --sidebar-width: 210px;
+          }
+
+          .app-shell.sidebar-is-collapsed {
+            --sidebar-width: 76px;
+          }
+        }
+
+        @media (max-width: 760px) {
+          .app-shell,
+          .app-shell.sidebar-is-collapsed {
+            --sidebar-width: 0px;
+          }
+
+          .app-shell .sidebar {
+            display: none !important;
+          }
+
+          .app-shell .main {
+            margin-left: 0 !important;
+            width: 100% !important;
+          }
+        }
+      `}</style>
 
       <Sidebar
         page={page}
         setPage={setPage}
         openAdd={() => openAdd()}
         profiles={profiles}
+        collapsed={sidebarCollapsed}
+        onToggle={() =>
+          setSidebarCollapsed((value) => !value)
+        }
       />
 
 
@@ -1058,13 +1976,433 @@ export default function App() {
             </button>
 
 
-            <button
-              className="icon-btn"
-              aria-label="Notifications"
+            <div
+              style={{
+                position: "relative"
+              }}
             >
-              <Bell size={18} />
-              <i />
-            </button>
+              <button
+                type="button"
+                className="icon-btn"
+                aria-label="Notifications"
+                title="Notifications and reminders"
+                onClick={() => {
+                  setShowNotifications((value) => !value);
+                  setShowAccountMenu(false);
+                }}
+                style={{
+                  position: "relative"
+                }}
+              >
+                <Bell size={18} />
+
+                {notificationCount > 0 && (
+                  <span
+                    style={{
+                      position: "absolute",
+                      top: 5,
+                      right: 5,
+                      width: 7,
+                      height: 7,
+                      borderRadius: "50%",
+                      background: "#7c3aed",
+                      border: "2px solid white"
+                    }}
+                  />
+                )}
+              </button>
+
+              {showNotifications && (
+                <div
+                  style={{
+                    position: "absolute",
+                    right: 0,
+                    top: "calc(100% + 10px)",
+                    width: 370,
+                    maxWidth: "calc(100vw - 24px)",
+                    background: "#fff",
+                    border: "1px solid #e8e1f1",
+                    borderRadius: 16,
+                    boxShadow: "0 18px 50px rgba(20,10,40,.18)",
+                    zIndex: 1100,
+                    overflow: "hidden"
+                  }}
+                >
+                  <div
+                    style={{
+                      padding: "16px 16px 12px",
+                      borderBottom: "1px solid #eee7f7"
+                    }}
+                  >
+                    <div
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                        gap: 10
+                      }}
+                    >
+                      <div>
+                        <b style={{ fontSize: 16 }}>
+                          Notifications
+                        </b>
+                        <small
+                          style={{
+                            display: "block",
+                            marginTop: 3,
+                            color: "#7b7285",
+                            fontSize: 11
+                          }}
+                        >
+                          Account activity & reminders
+                        </small>
+                      </div>
+
+                      <button
+                        type="button"
+                        className="secondary"
+                        onClick={enableBrowserNotifications}
+                        style={{
+                          padding: "7px 10px",
+                          fontSize: 11
+                        }}
+                      >
+                        <Bell size={14} />
+                        Enable alerts
+                      </button>
+                    </div>
+                  </div>
+
+                  <div
+                    style={{
+                      maxHeight: 330,
+                      overflowY: "auto"
+                    }}
+                  >
+                    {notificationItems.length === 0 ? (
+                      <div
+                        style={{
+                          padding: 24,
+                          textAlign: "center"
+                        }}
+                      >
+                        <CheckCircle2
+                          size={28}
+                          color="#7c3aed"
+                        />
+
+                        <b
+                          style={{
+                            display: "block",
+                            marginTop: 8
+                          }}
+                        >
+                          All caught up
+                        </b>
+
+                        <small
+                          style={{
+                            display: "block",
+                            marginTop: 4,
+                            color: "#7b7285"
+                          }}
+                        >
+                          No reminders or recent activity.
+                        </small>
+                      </div>
+                    ) : (
+                      notificationItems
+                        .slice(0, 12)
+                        .map((item) => (
+                          <div
+                            key={item.id}
+                            style={{
+                              padding: "12px 16px",
+                              borderBottom: "1px solid #f1edf5",
+                              display: "flex",
+                              gap: 10,
+                              alignItems: "flex-start"
+                            }}
+                          >
+                            <div
+                              style={{
+                                width: 34,
+                                height: 34,
+                                borderRadius: 10,
+                                background:
+                                  item.kind === "reminder"
+                                    ? "#f0e7ff"
+                                    : "#f7f4fb",
+                                color: "#6d28d9",
+                                display: "grid",
+                                placeItems: "center",
+                                flexShrink: 0
+                              }}
+                            >
+                              {item.kind === "reminder" ? (
+                                <Clock size={17} />
+                              ) : (
+                                <Bell size={17} />
+                              )}
+                            </div>
+
+                            <div
+                              style={{
+                                minWidth: 0,
+                                flex: 1
+                              }}
+                            >
+                              <b
+                                style={{
+                                  display: "block",
+                                  fontSize: 13,
+                                  lineHeight: 1.35
+                                }}
+                              >
+                                {item.title}
+                              </b>
+
+                              <small
+                                style={{
+                                  display: "block",
+                                  marginTop: 3,
+                                  color: "#7b7285",
+                                  fontSize: 11,
+                                  lineHeight: 1.35
+                                }}
+                              >
+                                {item.text}
+                              </small>
+
+                              <small
+                                style={{
+                                  display: "block",
+                                  marginTop: 4,
+                                  color: "#9a91a5",
+                                  fontSize: 10
+                                }}
+                              >
+                                {item.date
+                                  ? new Date(
+                                      item.date
+                                    ).toLocaleString(
+                                      "en-IN",
+                                      {
+                                        dateStyle: "medium",
+                                        timeStyle: "short"
+                                      }
+                                    )
+                                  : ""}
+                              </small>
+                            </div>
+
+                            {item.kind === "reminder" && (
+                              <button
+                                type="button"
+                                className="icon-btn"
+                                title="Complete reminder"
+                                onClick={() =>
+                                  completeReminder(
+                                    item.id
+                                  )
+                                }
+                                style={{
+                                  width: 32,
+                                  height: 32,
+                                  flexShrink: 0
+                                }}
+                              >
+                                <Check size={15} />
+                              </button>
+                            )}
+                          </div>
+                        ))
+                    )}
+                  </div>
+
+                  <div
+                    style={{
+                      padding: 12,
+                      background: "#faf8fd",
+                      borderTop: "1px solid #eee7f7"
+                    }}
+                  >
+                    {!showReminderForm ? (
+                      <button
+                        type="button"
+                        className="primary"
+                        onClick={() => {
+                          setShowReminderForm(true);
+                          if (!reminderAt) {
+                            setReminderAt(
+                              reminderInputValue()
+                            );
+                          }
+                        }}
+                        style={{
+                          width: "100%",
+                          justifyContent: "center"
+                        }}
+                      >
+                        <Plus size={16} />
+                        Add Reminder
+                      </button>
+                    ) : (
+                      <div>
+                        <div
+                          style={{
+                            display: "grid",
+                            gap: 8
+                          }}
+                        >
+                          <input
+                            value={reminderTitle}
+                            onChange={(e) =>
+                              setReminderTitle(
+                                e.target.value
+                              )
+                            }
+                            placeholder="Reminder title"
+                            autoFocus
+                          />
+
+                          <input
+                            value={reminderNote}
+                            onChange={(e) =>
+                              setReminderNote(
+                                e.target.value
+                              )
+                            }
+                            placeholder="Note (optional)"
+                          />
+
+                          <input
+                            type="datetime-local"
+                            value={reminderAt}
+                            onChange={(e) =>
+                              setReminderAt(
+                                e.target.value
+                              )
+                            }
+                          />
+
+                          <div
+                            style={{
+                              display: "flex",
+                              gap: 8
+                            }}
+                          >
+                            <button
+                              type="button"
+                              className="primary"
+                              onClick={addReminder}
+                              disabled={reminderBusy}
+                              style={{
+                                flex: 1,
+                                justifyContent:
+                                  "center"
+                              }}
+                            >
+                              <Check size={15} />
+                              {reminderBusy
+                                ? "Saving..."
+                                : "Save Reminder"}
+                            </button>
+
+                            <button
+                              type="button"
+                              className="secondary"
+                              onClick={
+                                resetReminderForm
+                              }
+                            >
+                              Cancel
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {reminders.filter(
+                      (r) => !r.completed
+                    ).length > 0 && (
+                      <div
+                        style={{
+                          marginTop: 10,
+                          paddingTop: 10,
+                          borderTop:
+                            "1px solid #eee7f7"
+                        }}
+                      >
+                        <small
+                          style={{
+                            color: "#7b7285",
+                            fontSize: 10
+                          }}
+                        >
+                          Your reminders
+                        </small>
+
+                        {reminders
+                          .filter(
+                            (r) => !r.completed
+                          )
+                          .slice(0, 5)
+                          .map((r) => (
+                            <div
+                              key={r.id}
+                              style={{
+                                display: "flex",
+                                alignItems: "center",
+                                gap: 8,
+                                marginTop: 7
+                              }}
+                            >
+                              <Clock
+                                size={13}
+                                color="#7c3aed"
+                              />
+
+                              <span
+                                style={{
+                                  flex: 1,
+                                  minWidth: 0,
+                                  fontSize: 11,
+                                  whiteSpace:
+                                    "nowrap",
+                                  overflow:
+                                    "hidden",
+                                  textOverflow:
+                                    "ellipsis"
+                                }}
+                              >
+                                {r.title}
+                              </span>
+
+                              <button
+                                type="button"
+                                className="icon-btn"
+                                title="Delete reminder"
+                                onClick={() =>
+                                  deleteReminder(
+                                    r.id
+                                  )
+                                }
+                                style={{
+                                  width: 27,
+                                  height: 27
+                                }}
+                              >
+                                <Trash2 size={13} />
+                              </button>
+                            </div>
+                          ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
 
 
             <div
@@ -1073,47 +2411,44 @@ export default function App() {
             >
               <button
                 type="button"
-                className="user-chip"
-                onClick={() => setShowAccountMenu((value) => !value)}
+                onClick={() => {
+                  setShowAccountMenu((value) => !value);
+                  setShowNotifications(false);
+                }}
                 aria-label="Open account menu"
-                style={{ cursor: "pointer", border: 0 }}
+                title="Account menu"
+                style={{
+                  width: 42,
+                  height: 42,
+                  padding: 0,
+                  borderRadius: "50%",
+                  border: showAccountMenu
+                    ? "2px solid #7c3aed"
+                    : "1px solid #e5e7eb",
+                  background: "#efe6ff",
+                  display: "grid",
+                  placeItems: "center",
+                  overflow: "hidden",
+                  cursor: "pointer",
+                  boxShadow: showAccountMenu
+                    ? "0 0 0 4px rgba(124,58,237,.10)"
+                    : "none",
+                  transition: "all 160ms ease"
+                }}
               >
-                <span
-                  style={{
-                    width: 38,
-                    height: 38,
-                    borderRadius: "50%",
-                    overflow: "hidden",
-                    display: "grid",
-                    placeItems: "center",
-                    background: "#efe6ff",
-                    color: "#6d28d9",
-                    fontWeight: 800,
-                    flexShrink: 0
-                  }}
-                >
-                  {avatarUrl ? (
-                    <img
-                      src={avatarUrl}
-                      alt="Account"
-                      style={{ width: "100%", height: "100%", objectFit: "cover" }}
-                    />
-                  ) : (
-                    "US"
-                  )}
-                </span>
-
-                <div>
-                  <b>
-                    {profiles[0]?.name || settings?.person_one_name || "Santhosh"}
-                    {" & "}
-                    {profiles[1]?.name || settings?.person_two_name || "Sindhuja"}
-                  </b>
-
-                  <small>
-                    {session?.user?.email || "Shared account"}
-                  </small>
-                </div>
+                {avatarUrl ? (
+                  <img
+                    src={avatarUrl}
+                    alt="Account"
+                    style={{
+                      width: "100%",
+                      height: "100%",
+                      objectFit: "cover"
+                    }}
+                  />
+                ) : (
+                  <UserCircle size={25} color="#6d28d9" />
+                )}
               </button>
 
               {showAccountMenu && (
@@ -1131,7 +2466,16 @@ export default function App() {
                     zIndex: 1000
                   }}
                 >
-                  <div style={{ display: "flex", gap: 12, alignItems: "center", marginBottom: 12 }}>
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 12,
+                      padding: "4px 2px 14px",
+                      marginBottom: 10,
+                      borderBottom: "1px solid #eee7f7"
+                    }}
+                  >
                     <div
                       style={{
                         width: 46,
@@ -1142,21 +2486,53 @@ export default function App() {
                         placeItems: "center",
                         background: "#efe6ff",
                         color: "#6d28d9",
-                        fontWeight: 800,
                         flexShrink: 0
                       }}
                     >
                       {avatarUrl ? (
-                        <img src={avatarUrl} alt="Account" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                        <img
+                          src={avatarUrl}
+                          alt="Account"
+                          style={{
+                            width: "100%",
+                            height: "100%",
+                            objectFit: "cover"
+                          }}
+                        />
                       ) : (
                         <UserCircle size={28} />
                       )}
                     </div>
+
                     <div style={{ minWidth: 0 }}>
-                      <b style={{ display: "block", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                        {session?.user?.email || "Shared account"}
+                      <b
+                        style={{
+                          display: "block",
+                          fontSize: 14,
+                          lineHeight: 1.3,
+                          whiteSpace: "nowrap",
+                          overflow: "hidden",
+                          textOverflow: "ellipsis"
+                        }}
+                      >
+                        {profiles[0]?.name || settings?.person_one_name || "Santhosh"}
+                        {" & "}
+                        {profiles[1]?.name || settings?.person_two_name || "Sindhuja"}
                       </b>
-                      <small className="muted">Account</small>
+
+                      <small
+                        style={{
+                          display: "block",
+                          marginTop: 3,
+                          fontSize: 11,
+                          color: "#7b7285",
+                          whiteSpace: "nowrap",
+                          overflow: "hidden",
+                          textOverflow: "ellipsis"
+                        }}
+                      >
+                        {session?.user?.email || "Shared account"}
+                      </small>
                     </div>
                   </div>
 
@@ -1167,7 +2543,30 @@ export default function App() {
                       setShowAccountMenu(false);
                       setPage("settings");
                     }}
-                    style={{ width: "100%", justifyContent: "flex-start", marginBottom: 8 }}
+                    style={{
+                      width: "100%",
+                      justifyContent: "flex-start",
+                      marginBottom: 8,
+                      gap: 10
+                    }}
+                  >
+                    <Settings size={17} />
+                    Settings
+                  </button>
+
+                  <button
+                    type="button"
+                    className="secondary"
+                    onClick={() => {
+                      setShowAccountMenu(false);
+                      setPage("settings");
+                    }}
+                    style={{
+                      width: "100%",
+                      justifyContent: "flex-start",
+                      marginBottom: 8,
+                      gap: 10
+                    }}
                   >
                     <Camera size={17} />
                     Change profile picture
@@ -1177,7 +2576,12 @@ export default function App() {
                     type="button"
                     className="secondary"
                     onClick={handleLogout}
-                    style={{ width: "100%", justifyContent: "flex-start" }}
+                    style={{
+                      width: "100%",
+                      justifyContent: "flex-start",
+                      gap: 10,
+                      color: "#dc2626"
+                    }}
                   >
                     <LogOut size={17} />
                     Logout
@@ -1961,13 +3365,15 @@ function BankBalance({
         if (!unassigned.length) return null;
 
         const availableForTransaction = (transaction) =>
-          bankAccounts.filter((bank) => {
-            if (transaction.type === "shared_expense") {
-              return bank.profile_id === transaction.shared_paid_by;
-            }
+          sortAndDedupeBanks(
+            bankAccounts.filter((bank) => {
+              if (transaction.type === "shared_expense") {
+                return bank.profile_id === transaction.shared_paid_by;
+              }
 
-            return bank.profile_id === transaction.profile_id;
-          });
+              return bank.profile_id === transaction.profile_id;
+            })
+          );
 
         return (
           <div className="panel" style={{ marginTop: 18 }}>
@@ -1989,20 +3395,27 @@ function BankBalance({
                     : profileName(t.profile_id);
 
                 return (
-                  <div className="recurring-row" key={t.id}>
+                  <div className="recurring-row bank-waiting-row" key={t.id}>
                     <div className="tx-icon">
-                      {t.type === "income" ? "₹" : t.type === "savings" ? "🏦" : "↘"}
+                      {(() => {
+                        const I = transactionIcon(t);
+                        return <I size={18} />;
+                      })()}
                     </div>
 
-                    <div style={{ minWidth: 0 }}>
-                      <b>{t.merchant || t.category || "Transaction"}</b>
-                      <span>
+                    <div>
+                      <b className="bank-waiting-title">
+                        {transactionLabel(t)}
+                      </b>
+                      <span className="bank-waiting-meta">
                         {person} · {localDateKey(t.transaction_date)}
                       </span>
                     </div>
 
-                    <div style={{ marginLeft: "auto", textAlign: "right" }}>
-                      <strong>{money(t.amount)}</strong>
+                    <div>
+                      <strong className="bank-waiting-amount">
+                        {money(t.amount)}
+                      </strong>
                     </div>
 
                     <select
@@ -2016,14 +3429,14 @@ function BankBalance({
                           assignTransactionToBank(t.id, e.target.value);
                         }
                       }}
-                      aria-label={`Select bank for ${t.merchant || t.category || "transaction"}`}
+                      aria-label={`Select bank for ${transactionLabel(t)}`}
                     >
                       <option value="">
                         {options.length ? "Select bank" : "No bank available"}
                       </option>
                       {options.map((bank) => (
                         <option key={bank.id} value={bank.id}>
-                          {bank.bank_name}
+                          {canonicalBankName(bank.bank_name)}
                         </option>
                       ))}
                     </select>
@@ -2061,7 +3474,7 @@ function BankBalance({
                   </div>
 
                   <div style={{ minWidth: 0 }}>
-                    <b>{bank.bank_name}</b>
+                    <b>{canonicalBankName(bank.bank_name)}</b>
                     <span>
                       {profileName(bank.profile_id)} ·{" "}
                       {bank.account_type || "Bank Account"}
@@ -2304,7 +3717,9 @@ function Sidebar({
   page,
   setPage,
   openAdd,
-  profiles
+  profiles,
+  collapsed,
+  onToggle
 }) {
 
   const items = [
@@ -2389,17 +3804,60 @@ function Sidebar({
 
 
   return (
-    <aside className="sidebar">
+    <aside
+      className="sidebar"
+      style={{
+        boxSizing: "border-box",
+        overflow: "hidden"
+      }}
+    >
 
-      <div className="side-brand">
+      <div
+        className="side-brand"
+        style={{
+          position: "relative",
+          paddingRight: collapsed ? 4 : 44
+        }}
+      >
 
         <strong>
           US <span>💜</span>
         </strong>
 
-        <small>
-          We Spent but We Saved
-        </small>
+        {!collapsed && (
+          <small>
+            We Spent but We Saved
+          </small>
+        )}
+
+        <button
+          type="button"
+          className="sidebar-toggle"
+          onClick={onToggle}
+          title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+          aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+          style={{
+            position: "absolute",
+            right: collapsed ? 2 : 0,
+            top: 0,
+            width: 32,
+            height: 32,
+            borderRadius: 8,
+            border: "1px solid #e5e7eb",
+            background: "#ffffff",
+            color: "#6d28d9",
+            display: "grid",
+            placeItems: "center",
+            cursor: "pointer",
+            zIndex: 10
+          }}
+        >
+          {collapsed ? (
+            <ChevronRight size={17} />
+          ) : (
+            <ChevronLeft size={17} />
+          )}
+        </button>
 
       </div>
 
@@ -2415,12 +3873,22 @@ function Sidebar({
                   ? "active"
                   : ""
               }
+              title={collapsed ? label : undefined}
+              aria-label={label}
               onClick={() =>
                 setPage(id)
               }
+              style={{
+                width: collapsed ? "52px" : "100%",
+                minWidth: collapsed ? "52px" : 0,
+                alignSelf: collapsed ? "center" : undefined,
+                justifyContent: collapsed ? "center" : undefined,
+                paddingLeft: collapsed ? 0 : undefined,
+                paddingRight: collapsed ? 0 : undefined
+              }}
             >
               <I size={18} />
-              {label}
+              {!collapsed && label}
             </button>
           )
         )}
@@ -2431,17 +3899,29 @@ function Sidebar({
       <button
         className="side-add"
         onClick={openAdd}
+        title={collapsed ? "Add Transaction" : undefined}
+        aria-label="Add Transaction"
+        style={{
+          width: collapsed ? "52px" : "100%",
+          minWidth: collapsed ? "52px" : 0,
+          alignSelf: collapsed ? "center" : undefined,
+          justifyContent: collapsed ? "center" : undefined,
+          paddingLeft: collapsed ? 0 : undefined,
+          paddingRight: collapsed ? 0 : undefined
+        }}
       >
         <Plus size={19} />
-        Add Transaction
+        {!collapsed && "Add Transaction"}
       </button>
 
 
-      <div className="side-footer">
-        <small>
-          Your money, together.
-        </small>
-      </div>
+      {!collapsed && (
+        <div className="side-footer">
+          <small>
+            Your money, together.
+          </small>
+        </div>
+      )}
 
     </aside>
   );
@@ -2705,7 +4185,14 @@ function Overview({
               <XAxis dataKey="label" />
               <YAxis />
               <Tooltip formatter={(v) => money(v)} />
-              <Bar dataKey="value" name="Expenses" radius={[6, 6, 0, 0]} />
+              <Bar dataKey="value" name="Expenses" radius={[6, 6, 0, 0]}>
+                {weekDays.map((entry, index) => (
+                  <Cell
+                    key={`week-bar-${entry.label}`}
+                    fill={ANALYTICS_COLORS[index % ANALYTICS_COLORS.length]}
+                  />
+                ))}
+              </Bar>
             </BarChart>
           </ResponsiveContainer>
         </div>
@@ -2725,7 +4212,15 @@ function Overview({
               <XAxis dataKey="month" />
               <YAxis />
               <Tooltip formatter={(v) => money(v)} />
-              <Line type="monotone" dataKey="value" name="Expenses" strokeWidth={3} dot={{ r: 4 }} />
+              <Line
+                type="monotone"
+                dataKey="value"
+                name="Expenses"
+                stroke="#7C3AED"
+                strokeWidth={3}
+                dot={{ r: 5, fill: "#7C3AED", stroke: "#FFFFFF", strokeWidth: 2 }}
+                activeDot={{ r: 7, fill: "#7C3AED", stroke: "#FFFFFF", strokeWidth: 2 }}
+              />
             </LineChart>
           </ResponsiveContainer>
         </div>
@@ -3234,7 +4729,7 @@ function TransactionList({
       {transactions.map((t) => {
 
         const I =
-          iconFor(t.category);
+          transactionIcon(t);
 
         const p =
           profiles.find(
@@ -3257,9 +4752,7 @@ function TransactionList({
             <div className="tx-main">
 
               <b>
-                {t.merchant ||
-                  t.category ||
-                  t.type}
+                {transactionLabel(t)}
               </b>
 
               <span>
@@ -3284,10 +4777,8 @@ function TransactionList({
               }
             >
 
-              {t.type === "income"
+              {t.type === "income" || t.type === "savings"
                 ? "+"
-                : t.type === "savings"
-                ? "🏦 "
                 : "−"}
 
               {money(t.amount)}
@@ -3348,6 +4839,67 @@ function Empty({
   );
 }
 
+
+// ============================================================
+// BANK DISPLAY HELPERS
+// ============================================================
+
+const BANK_DISPLAY_ORDER = ["BOB", "Canara Bank", "SBI"];
+
+const canonicalBankName = (name = "") => {
+  const value = String(name).trim().toLowerCase();
+
+  if (
+    value === "bob" ||
+    value === "bank of baroda" ||
+    value === "bank of baroda (bob)"
+  ) {
+    return "BOB";
+  }
+
+  if (value === "canara" || value === "canara bank") {
+    return "Canara Bank";
+  }
+
+  if (value === "sbi" || value === "state bank of india") {
+    return "SBI";
+  }
+
+  return String(name).trim();
+};
+
+const bankDisplayRank = (name) => {
+  const canonical = canonicalBankName(name);
+  const index = BANK_DISPLAY_ORDER.indexOf(canonical);
+  return index === -1 ? BANK_DISPLAY_ORDER.length : index;
+};
+
+const sortAndDedupeBanks = (banks = []) => {
+  const seen = new Set();
+
+  return [...banks]
+    .sort((a, b) => {
+      const rankDiff =
+        bankDisplayRank(a.bank_name) - bankDisplayRank(b.bank_name);
+
+      if (rankDiff !== 0) return rankDiff;
+
+      return String(a.bank_name).localeCompare(
+        String(b.bank_name),
+        undefined,
+        { sensitivity: "base" }
+      );
+    })
+    .filter((bank) => {
+      const canonical = canonicalBankName(bank.bank_name);
+
+      // If both "BOB" and "Bank of Baroda" exist, show only BOB in
+      // dropdowns. Prefer the actual BOB record when possible.
+      if (seen.has(canonical)) return false;
+      seen.add(canonical);
+      return true;
+    });
+};
 
 // ============================================================
 // ADD TRANSACTION
@@ -3464,15 +5016,19 @@ function AddTransaction({
     return data;
   };
 
-  const availableBanks = bankAccounts.filter((b) => {
-    if (profile === "shared" && type === "expense") {
-      return b.profile_id === paidBy;
-    }
-    if (profile === "shared") {
-      return true;
-    }
-    return b.profile_id === profile;
-  });
+  const availableBanks = sortAndDedupeBanks(
+    bankAccounts.filter((b) => {
+      if (profile === "shared" && type === "expense") {
+        return b.profile_id === paidBy;
+      }
+
+      if (profile === "shared") {
+        return true;
+      }
+
+      return b.profile_id === profile;
+    })
+  );
 
   useEffect(() => {
     if (bankAccount && availableBanks.some((b) => b.id === bankAccount)) return;
@@ -3750,7 +5306,8 @@ function AddTransaction({
               <option value="">Select bank</option>
               {availableBanks.map((b) => (
                 <option key={b.id} value={b.id}>
-                  {b.bank_name} · {b.account_type || "Bank Account"}
+                  {canonicalBankName(b.bank_name)} ·{" "}
+                  {b.account_type || "Bank Account"}
                 </option>
               ))}
             </select>
@@ -4490,8 +6047,10 @@ function Analytics({
                 <Line
                   type="monotone"
                   dataKey="value"
-                  stroke="currentColor"
+                  stroke="#7C3AED"
                   strokeWidth={3}
+                  dot={{ r: 5, fill: "#7C3AED", stroke: "#FFFFFF", strokeWidth: 2 }}
+                  activeDot={{ r: 7, fill: "#7C3AED", stroke: "#FFFFFF", strokeWidth: 2 }}
                 />
 
               </LineChart>
@@ -5994,23 +7553,20 @@ function Reports({
           <div className="transaction-list">
             {rows.slice(0, 20).map((t) => (
               <div
-                className="transaction-row"
+                className="transaction-row report-transaction-row"
                 key={t.id}
               >
-                <div className="transaction-main">
-                  <div className="transaction-icon">
-                    {t.type === "income"
-                      ? "↗"
-                      : t.type === "savings"
-                      ? "🏦"
-                      : "↘"}
+                <div className="transaction-main report-transaction-main">
+                  <div className="transaction-icon report-transaction-icon">
+                    {(() => {
+                      const I = transactionIcon(t);
+                      return <I size={18} />;
+                    })()}
                   </div>
 
-                  <div>
+                  <div className="report-transaction-info">
                     <strong>
-                      {t.merchant ||
-                        t.category ||
-                        "Transaction"}
+                      {transactionLabel(t)}
                     </strong>
 
                     <span>
@@ -6019,7 +7575,16 @@ function Reports({
                   </div>
                 </div>
 
-                <strong>
+                <strong
+                  className={`report-transaction-amount ${
+                    t.type === "income" || t.type === "savings"
+                      ? "money-positive"
+                      : "money-negative"
+                  }`}
+                >
+                  {t.type === "income" || t.type === "savings"
+                    ? "+"
+                    : "−"}{" "}
                   {money(t.amount)}
                 </strong>
               </div>
